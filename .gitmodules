@@ -1,0 +1,15 @@
+[submodule "bui"]
+	path = bui
+	url = https://invent.kde.org/qt/qt/qtbase
+[submodule "ardour"]
+	path = ardour
+	url = https://github.com/robertpelloni/ardour
+[submodule "lmms"]
+	path = lmms
+	url = https://github.com/robertpelloni/lmms
+[submodule "zrythm"]
+	path = zrythm
+	url = https://github.com/robertpelloni/zrythm
+[submodule "muse"]
+	path = muse
+	url = https://github.com/muse-sequencer/muse
