@@ -1,6 +1,6 @@
-[submodule "bui"]
+[submodule "bobui"]
 	path = bobui
-	url = https://invent.kde.org/qt/qt/qtbase
+	url = https://github.com/robertpelloni/bobui
 [submodule "ardour"]
 	path = ardour
 	url = https://github.com/robertpelloni/ardour
@@ -13,5 +13,3 @@
 [submodule "muse"]
 	path = muse
 	url = https://github.com/muse-sequencer/muse
-[submodule "bobui"]
-	url = https://github.com/robertpelloni/bobui
