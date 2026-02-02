@@ -13,3 +13,5 @@
 [submodule "muse"]
 	path = muse
 	url = https://github.com/muse-sequencer/muse
+[submodule "bobui"]
+	url = https://github.com/robertpelloni/bobui
