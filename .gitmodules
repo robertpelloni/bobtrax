@@ -1,5 +1,5 @@
 [submodule "bui"]
-	path = bui
+	path = bobui
 	url = https://invent.kde.org/qt/qt/qtbase
 [submodule "ardour"]
 	path = ardour
