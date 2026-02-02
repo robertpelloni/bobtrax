@@ -1,6 +1,6 @@
-# baw
+# bobtrax
 
-**baw** is a collection of audio workstation submodules.
+**bobtrax** is a collection of audio workstation submodules.
 
 ## Included Modules
 - bobui (Qt Base)
