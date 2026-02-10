@@ -3,13 +3,13 @@
 	url = https://github.com/robertpelloni/bobui
 [submodule "ardour"]
 	path = ardour
-	url = https://github.com/robertpelloni/ardour
+	url = https://github.com/Ardour/ardour
 [submodule "lmms"]
 	path = lmms
-	url = https://github.com/robertpelloni/lmms
+	url = https://github.com/LMMS/lmms
 [submodule "zrythm"]
 	path = zrythm
-	url = https://github.com/robertpelloni/zrythm
+	url = https://github.com/zrythm/zrythm
 [submodule "muse"]
 	path = muse
 	url = https://github.com/muse-sequencer/muse
