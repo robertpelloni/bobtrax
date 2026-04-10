@@ -1,0 +1,16 @@
+{
+  "nextId": 2,
+  "tasks": [
+    {
+      "id": "1",
+      "subject": "Fix submodule cloning error for 'ardour'",
+      "description": "Analyze and fix the submodule cloning error where a specific commit '4ccb7719fa212c66b89f6660f5744a1c3da2dae5' in the 'ardour' submodule is not being found.",
+      "status": "completed",
+      "metadata": {},
+      "blocks": [],
+      "blockedBy": [],
+      "createdAt": 1775863146981,
+      "updatedAt": 1775863290218
+    }
+  ]
+}
