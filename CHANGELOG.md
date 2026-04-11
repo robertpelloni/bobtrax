@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.4] - 2026-04-11
+### Added
+- Added `launcher.py` as an interim unified entry point to launch compiled DAWs.
+- Checked off UI analysis and wrapper comment tasks in `TODO.md`.
+
 ## [1.0.3] - 2026-04-11
 ### Added
 - Added GitHub Actions workflow (`ci.yml`) to automatically check submodule health and compile them.
