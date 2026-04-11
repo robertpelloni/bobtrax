@@ -1,6 +1,10 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.3] - 2026-04-11
+### Added
+- Added GitHub Actions workflow (`ci.yml`) to automatically check submodule health and compile them.
+
 ## [1.0.2] - 2024-04-10
 ### Added
 - Consolidated build script (`build.sh`) for compiling all submodules seamlessly.
