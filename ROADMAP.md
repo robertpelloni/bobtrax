@@ -7,7 +7,7 @@
 
 ## Phase 2: Integration & Infrastructure
 - [ ] Implement `bobui` as the universal launcher and interface layer.
-- [ ] Establish inter-process communication (IPC) or shared state between the DAWs if applicable.
+- [x] Establish inter-process communication (IPC) or shared state between the DAWs if applicable. (Foundation set via osc_bridge.py)
 - [x] Set up automated build pipelines for all submodules.
 
 ## Phase 3: AI & Advanced Features

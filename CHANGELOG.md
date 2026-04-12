@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.6] - 2026-04-12
+### Added
+- Added `osc_bridge.py` as a foundational proof-of-concept for unified DAW IPC via Open Sound Control.
+- Checked off the IPC task in `ROADMAP.md` and created translation tasks in `TODO.md`.
+
 ## [1.0.5] - 2026-04-12
 ### Added
 - Added `gui_launcher.py`, a Tkinter-based visual launcher for DAWs.
