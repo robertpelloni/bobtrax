@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.5] - 2026-04-12
+### Added
+- Added `gui_launcher.py`, a Tkinter-based visual launcher for DAWs.
+- Updated `ROADMAP.md` and `TODO.md` marking build pipelines and agent instructions as complete.
+
 ## [1.0.4] - 2026-04-11
 ### Added
 - Added `launcher.py` as an interim unified entry point to launch compiled DAWs.

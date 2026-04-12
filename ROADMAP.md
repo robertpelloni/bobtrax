@@ -8,7 +8,7 @@
 ## Phase 2: Integration & Infrastructure
 - [ ] Implement `bobui` as the universal launcher and interface layer.
 - [ ] Establish inter-process communication (IPC) or shared state between the DAWs if applicable.
-- [ ] Set up automated build pipelines for all submodules.
+- [x] Set up automated build pipelines for all submodules.
 
 ## Phase 3: AI & Advanced Features
 - [ ] Implement AI mixing assistant.
