@@ -6,5 +6,5 @@
 - [x] Ensure all LLM instructions files are consistently respected by each agent.
 - [x] Implement CI/CD to auto-check submodule health and compile them.
 - [ ] Configure Ardour to connect its native OSC control surface to `127.0.0.1:8000` via default template config.
-- [ ] Investigate/implement OSC translation mapping because different DAWs use different OSC paths (e.g. `/ardour/transport_play` vs `/muse/play`).
+- [x] Investigate/implement OSC translation mapping because different DAWs use different OSC paths (e.g. `/ardour/transport_play` vs `/muse/play`).
 - [ ] Expose an HTTP/WebSocket wrapper on top of `osc_bridge.py` so `bobui` can command the DAWs via web technologies if desired.

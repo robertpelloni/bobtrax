@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.7] - 2026-04-13
+### Added
+- Added `INCOMING_MAP` and `OUTGOING_MAP` dictionary routing logic to `osc_bridge.py` to seamlessly translate specific DAW OSC paths into standard commands across the ecosystem.
+- Checked off the OSC translation mapping task in `TODO.md`.
+
 ## [1.0.6] - 2026-04-12
 ### Added
 - Added `osc_bridge.py` as a foundational proof-of-concept for unified DAW IPC via Open Sound Control.
