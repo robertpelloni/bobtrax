@@ -1,6 +1,12 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.10] - 2026-04-15
+### Added
+- Created `bobtrax_launcher` within `bobui` source tree. This is a native Qt/C++ GUI launcher that replaces the interim python scripts.
+- Integrated `bobtrax_launcher` into `bobui/src/CMakeLists.txt`.
+- Marked the 'bobui universal launcher' milestone complete in `ROADMAP.md`.
+
 ## [1.0.9] - 2026-04-13
 ### Changed
 - Verified Ardour's native OSC surface configuration defaults map perfectly to the central `osc_bridge.py` port `8000`.
