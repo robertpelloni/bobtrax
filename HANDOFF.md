@@ -1,15 +1,13 @@
 # Handoff Document
 
-## Session Summary (1.0.10)
-- **Phase 2 Completion:** Phase 2 (Integration & Infrastructure) has been entirely completed.
-- **Native UI Launcher (`bobtrax_launcher`):** Addressed the final TODO regarding `bobui` lacking front-end launcher capabilities. Created a fully native Qt C++ application within `bobui/src/bobtrax_launcher` that leverages `QProcess::startDetached` to seamlessly boot up Ardour, LMMS, MusE, or Zrythm.
-- **CMake Integration:** Hooked the new `bobtrax_launcher` application directly into `bobui/src/CMakeLists.txt` using `add_subdirectory`.
-- **Project Tracking Updates:** Marked all associated `TODO.md` and `ROADMAP.md` entries as completed. Version is now strictly tracked at `1.0.10`.
-- **Memory Consolidation:** Outputted a comprehensive structural map of the ecosystem (including `ci.yml`, `osc_bridge.py`, `osc_web_wrapper.py`, and `bobtrax_launcher`) and updated `MEMORY.md`.
+## Session Summary (1.0.11)
+- **Phase 3 (AI Features) Initiated:** Began work on the next major milestone in the `ROADMAP.md` by tackling the AI Mixing Assistant.
+- **`mixing_assistant.py`:** Created a foundational Python CLI tool in a new `ai_assistant/` directory. This script is designed to take natural language text (e.g., "Make the kick drum punchy") and parse the intent into a discrete array of target OSC paths and values (e.g., `/track/kick/compressor/threshold`, `-24.0`).
+- **Bridge Integration:** Hooked `mixing_assistant.py` to seamlessly broadcast its generated mixing moves into the central `osc_bridge.py` UDP router, enabling automated remote control of Ardour, MusE, or LMMS.
+- **Documentation Update:** Appended a complete architectural readout to `MEMORY.md` reflecting all components built up to `1.0.11`. Updated `ROADMAP.md` marking the foundational milestone.
 
 ## Next Steps for the Next Agent
-- **Welcome to Phase 3:** The ecosystem's foundation is complete. Phase 3 revolves entirely around AI & Advanced Features.
-- First Phase 3 Target (`ROADMAP.md`): "Implement AI mixing assistant." Consider how to hook up an LLM (like Claude or GPT) to process audio files via Python or analyze/mutate DAW session files directly.
-- Second Phase 3 Target: "Implement stem separation capabilities within `bobui`." Investigate using Python libraries (like Spleeter or Demucs) and bridging them with the new `bobtrax_launcher` C++ Qt interface.
-- Follow the universal rulebook located at `docs/UNIVERSAL_LLM_INSTRUCTIONS.md`.
-- Remember to strictly bump versions via Python scripts or `sed` before any git commit and prepend entries to `CHANGELOG.md`!
+- **LLM Integration:** The current `mixing_assistant.py` uses fake hardcoded heuristic parsing (`if "punchy" in prompt:`). Your task is to rip that out and connect it to a real remote LLM API (OpenAI/Anthropic) or local inference engine (Llama.cpp/Ollama).
+- **System Prompt Refinement:** Add functionality in the script to inject a "schema" into the LLM system prompt, so the LLM knows what tracks are available and what OSC endpoints it can mutate.
+- **Alternative Path:** If LLM mixing isn't desired right now, focus on the second Phase 3 item: "Implement stem separation capabilities within `bobui`." Research `Spleeter` or `Demucs` and integrate a Python wrapper.
+- Adhere to `docs/UNIVERSAL_LLM_INSTRUCTIONS.md`. Bump `VERSION.md` and `CHANGELOG.md` upon completion of a feature!

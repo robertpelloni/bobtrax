@@ -196,3 +196,43 @@
 *   **Phase 3 AI Features:** Injecting Small Language Models (SLMs) for autonomous mixing assistance and stem separation into the `bobui` layer.
 *   **Cross-DAW Plugin Wrapping:** Creating a bridge to share VST/LV2 plugins simultaneously across LMMS, Ardour, etc.
 *   **WebAssembly Porting:** Exploring WASM compilation of core C/C++ audio engines for decentralized, browser-based collaboration.
+[PROJECT_MEMORY]
+
+# Project Memory: Bobtrax Omni-Workspace
+
+## 1. Project Architecture & Vision
+*   **Monolithic Ecosystem:** Bobtrax is a meta-project serving as a unified command center orchestrating multiple major open-source audio workstations (DAWs) through git submodules.
+*   **Integrated Submodules:**
+    *   **Ardour** (Digital audio workstation, uses Waf)
+    *   **LMMS** (Digital audio workstation, uses CMake)
+    *   **MusE Sequencer** (MIDI/Audio sequencer, uses CMake)
+    *   **Zrythm** (Automated DAW, uses CMake/Meson)
+*   **The UI Layer (`bobui`):** A custom UI submodule that is currently a mirror/fork of **QtBase** (Qt 6 core). The long-term vision is for `bobui` to evolve into the unified frontend launcher and interface layer connecting these DAWs together. With `1.0.10`, the first native C++/Qt application (`bobtrax_launcher`) was injected into its build tree.
+
+## 2. Infrastructure & Tooling Decisions
+*   **Unified Build System (`build.sh`):** A bash script at the root abstracts the varying build dependencies (CMake vs. Waf) across the submodules, supporting specific build flags like `--only-lmms` for targeted compilations.
+*   **Continuous Integration (`ci.yml`):** A robust GitHub Actions pipeline pulls all submodules recursively, installs heavy audio/UI packages (ALSA, JACK, GTK3, Sndfile, etc.), and executes the unified `build.sh` to prevent regressions on push/PR.
+*   **Interim Launchers (`launcher.py` and `gui_launcher.py`):**
+    *   Because `bobui` is currently just QtBase and lacks frontend logic, interim launchers bridge the gap.
+    *   `launcher.py` acts as a unified CLI launcher, and `gui_launcher.py` provides a lightweight Tkinter-based graphical window.
+    *   *Design Pattern:* Both spawn the compiled DAW binaries as detached child processes via Python's `subprocess.Popen`. This insulates the user's audio sessions from launcher crashes.
+    *   **Native GUI (`bobtrax_launcher`):** Introduced in the `bobui/src/bobtrax_launcher/` directory, utilizing `QProcess::startDetached` to emulate the interim scripts natively.
+*   **Inter-Process Communication (IPC) Ecosystem:**
+    *   **`osc_bridge.py`:** A centralized UDP router capturing and broadcasting Open Sound Control (OSC) messages across DAWs. Serves as the "Shared State" layer, enabling transport controls (play, stop) to sync across Ardour, MusE, etc. Features `INCOMING_MAP` and `OUTGOING_MAP` dictionaries for robust native dialect translation (e.g. `/ardour/transport_play` -> `/muse/play`). Codebase analysis verified Ardour natively targets `127.0.0.1:8000` via its control surface logic, meaning out-of-the-box it hooks directly into this bridge without configuration hacking.
+    *   **`osc_web_wrapper.py`:** A `websockets`-based python server that listens for modern web JSON payloads (`{"action": "play"}`) and translates them into OSC commands fired off to the `osc_bridge.py`. Decouples low-latency audio control from high-level web tech.
+
+## 3. Strict Documentation & Versioning Patterns
+*   **The Universal Rulebook:** The core instructions (`docs/UNIVERSAL_LLM_INSTRUCTIONS.md`) govern all LLM actions (Claude, Gemini, GPT) across the monorepo to ensure consistency, with model-specific files (`GPT.md`, `CLAUDE.md`, etc.) pointing back to it.
+*   **Single Source of Truth Versioning:** The `VERSION.md` file tracks the single absolute version of the ecosystem (currently `1.0.11`).
+*   **Synchronized Update Cycle:** Every feature or task completed requires:
+    1. Bumping the semantic version in `VERSION.md`.
+    2. Prepending a detailed entry in `CHANGELOG.md`.
+    3. Documenting the changes by checking off tasks in `TODO.md` and `ROADMAP.md`.
+    4. Committing with the version referenced in the message.
+*   **Context Passing:** `MEMORY.md` and `HANDOFF.md` act as mandatory state-preservation files between sessions and different AI agents, ensuring continuity.
+
+## 4. Phase 3 & AI Integrations (From IDEAS.md, TODO.md & ROADMAP.md)
+*   **AI Mixing Assistant (`mixing_assistant.py`):** In version `1.0.11`, a foundational Python NLP parser was introduced. It takes conversational prompts (e.g. "Make the kick punchy"), translates the intent into explicit track/parameter/value tuples, and broadcasts those OSC commands into the `osc_bridge.py` router to manipulate the DAWs in real-time.
+*   **Future Steps:**
+    *   Integrate a live LLM API (OpenAI/Anthropic) or local inference engine (Llama.cpp) into the `mixing_assistant.py`.
+    *   Implement stem separation capabilities (Spleeter/Demucs) bridged with the `bobtrax_launcher` UI.
