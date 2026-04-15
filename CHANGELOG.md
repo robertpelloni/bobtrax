@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.11] - 2026-04-15
+### Added
+- Initiated Phase 3 by adding `ai_assistant/mixing_assistant.py`. This script serves as a foundational proof-of-concept for translating natural language prompts into OSC mixing commands.
+- Updated `ROADMAP.md` and added concrete next-step tasks to `TODO.md` regarding LLM integration.
+
 ## [1.0.10] - 2026-04-15
 ### Added
 - Created `bobtrax_launcher` within `bobui` source tree. This is a native Qt/C++ GUI launcher that replaces the interim python scripts.
