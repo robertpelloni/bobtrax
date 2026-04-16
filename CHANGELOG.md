@@ -1,6 +1,10 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## [1.0.9] - 2026-04-16
+### Changed
+- Configured Ardour's native OSC control surface to connect to `127.0.0.1:8000` via user configuration (`~/.config/ardour6/config`).
+
 ## [1.0.12] - 2026-04-16
 ### Changed
 - Conclusively verified Ardour's native OSC surface configuration defaults perfectly to `osc_bridge.py` via `127.0.0.1:8000` without manual config interventions.
