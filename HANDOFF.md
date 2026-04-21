@@ -1,13 +1,13 @@
 # Handoff Document
 
-## Session Summary (1.0.8)
-- **IPC Foundation:** Analyzed Ardour and MusE codebase and successfully proved OSC compatibility. Created `osc_bridge.py` as a centralized UDP router to intercept and broadcast Open Sound Control messages, establishing the initial Inter-Process Communication (Shared State) layer for Phase 2.
-- **OSC Translation Map:** Engineered dictionaries (`INCOMING_MAP`, `OUTGOING_MAP`) inside the bridge to seamlessly translate DAW-specific commands (like `/ardour/transport_play`) to global `play` actions and back to other DAWs (like `/muse/play`).
-- **WebSocket Wrapper:** Created `osc_web_wrapper.py`. This script opens a WebSocket daemon to listen for modern web JSON payloads (`{"action":"play"}`) and pipes them into the `osc_bridge.py` UDP stream. This decouples web technologies from the low-latency audio core, enabling high-level control.
-- **Documentation:** Updated all related tracking files (TODO, ROADMAP, VERSION, CHANGELOG). Appended the comprehensive [PROJECT_MEMORY] to `MEMORY.md` detailing the entire IPC architecture build-out.
+## Session Summary (1.0.11)
+- **Phase 3 (AI Features) Initiated:** Began work on the next major milestone in the `ROADMAP.md` by tackling the AI Mixing Assistant.
+- **`mixing_assistant.py`:** Created a foundational Python CLI tool in a new `ai_assistant/` directory. This script is designed to take natural language text (e.g., "Make the kick drum punchy") and parse the intent into a discrete array of target OSC paths and values (e.g., `/track/kick/compressor/threshold`, `-24.0`).
+- **Bridge Integration:** Hooked `mixing_assistant.py` to seamlessly broadcast its generated mixing moves into the central `osc_bridge.py` UDP router, enabling automated remote control of Ardour, MusE, or LMMS.
+- **Documentation Update:** Appended a complete architectural readout to `MEMORY.md` reflecting all components built up to `1.0.11`. Updated `ROADMAP.md` marking the foundational milestone.
 
 ## Next Steps for the Next Agent
-- Review the single remaining unchecked Phase 2 `TODO.md` item: "Configure Ardour to connect its native OSC control surface to `127.0.0.1:8000` via default template config." This will require modifying `ardour/` files or the user configuration bootstrap.
-- If Phase 2 is completely resolved, shift focus to Phase 3: "Implement AI mixing assistant" or "stem separation capabilities within bobui."
-- Remember to strictly bump versions via Python or `sed` before any git commit and prepend entries to `CHANGELOG.md`!
-- Follow the universal rulebook located at `docs/UNIVERSAL_LLM_INSTRUCTIONS.md`.
+- **LLM Integration:** The current `mixing_assistant.py` uses fake hardcoded heuristic parsing (`if "punchy" in prompt:`). Your task is to rip that out and connect it to a real remote LLM API (OpenAI/Anthropic) or local inference engine (Llama.cpp/Ollama).
+- **System Prompt Refinement:** Add functionality in the script to inject a "schema" into the LLM system prompt, so the LLM knows what tracks are available and what OSC endpoints it can mutate.
+- **Alternative Path:** If LLM mixing isn't desired right now, focus on the second Phase 3 item: "Implement stem separation capabilities within `bobui`." Research `Spleeter` or `Demucs` and integrate a Python wrapper.
+- Adhere to `docs/UNIVERSAL_LLM_INSTRUCTIONS.md`. Bump `VERSION.md` and `CHANGELOG.md` upon completion of a feature!

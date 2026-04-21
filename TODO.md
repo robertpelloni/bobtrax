@@ -8,3 +8,5 @@
 - [x] Configure Ardour to connect its native OSC control surface to `127.0.0.1:8000` via default template config. (Confirmed: defaults are already 8000 in codebase)
 - [x] Investigate/implement OSC translation mapping because different DAWs use different OSC paths (e.g. `/ardour/transport_play` vs `/muse/play`).
 - [x] Expose an HTTP/WebSocket wrapper on top of `osc_bridge.py` so `bobui` can command the DAWs via web technologies if desired.
+- [x] Connect `mixing_assistant.py` to a real LLM backend API (OpenAI/Anthropic or local inference).
+- [x] Refine the system prompt in the mixing assistant to provide the LLM with the exact current track list and available OSC address schema of the running DAWs.
