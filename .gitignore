@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# Jules AI session logs (auto-generated, not needed in repo)
+.jules/sessions/
