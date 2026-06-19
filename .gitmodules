@@ -12,4 +12,4 @@
 	url = https://github.com/zrythm/zrythm
 [submodule "muse"]
 	path = muse
-	url = https://github.com/muse-sequencer/muse
+	url = https://github.com/robertpelloni/muse
