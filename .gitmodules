@@ -1,6 +1,6 @@
 [submodule "bobui"]
 	path = bobui
-	url = https://github.com/robertpelloni/bobui
+	url = https://github.com/robertpelloni/bqt
 [submodule "ardour"]
 	path = ardour
 	url = https://github.com/Ardour/ardour
