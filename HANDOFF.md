@@ -1,6 +1,6 @@
 # Handoff Document
 
-## Session Summary (1.0.14)
+## Session Summary (1.0.15)
 - **Phase 3 (AI Features) Continued:** Completed the stem separation feature.
 - **Stem Separation:** Created a python wrapper around `demucs` in `bobui/src/bobtrax_launcher/stem_separator.py`.
 
