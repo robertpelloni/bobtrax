@@ -12,5 +12,5 @@
 
 ## Phase 3: AI & Advanced Features
 - [x] Implement AI mixing assistant. (Foundation set via mixing_assistant.py NLP parsing template)
-- [ ] Implement stem separation capabilities within `bobui`.
+- [x] Implement stem separation capabilities within `bobui`.
 - [ ] Port core audio engines to WebAssembly for browser-based collaboration.

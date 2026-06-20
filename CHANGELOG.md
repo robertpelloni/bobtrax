@@ -1,4 +1,7 @@
 # Changelog
+
+## [1.0.14]
+- Added stem separation wrapper using Demucs in bobui/src/bobtrax_launcher/stem_separator.py.
 All notable changes to this project will be documented in this file.
 
 ## [1.0.13] - 2026-04-16

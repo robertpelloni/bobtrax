@@ -10,3 +10,4 @@
 - [x] Expose an HTTP/WebSocket wrapper on top of `osc_bridge.py` so `bobui` can command the DAWs via web technologies if desired.
 - [x] Connect `mixing_assistant.py` to a real LLM backend API (OpenAI/Anthropic or local inference).
 - [x] Refine the system prompt in the mixing assistant to provide the LLM with the exact current track list and available OSC address schema of the running DAWs.
+- [x] Implement Demucs-based python stem separator wrapper into bobui src/bobtrax_launcher.
