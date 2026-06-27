@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Bobtrax WebAssembly Launcher</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; margin-top: 50px; background-color: #222; color: #eee; }
+        h1 { color: #61dafb; }
+        .button {
+            background-color: #4CAF50; border: none; color: white; padding: 15px 32px;
+            text-align: center; text-decoration: none; display: inline-block;
+            font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 8px;
+        }
+        .container { max-width: 600px; margin: 0 auto; background: #333; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Bobtrax WebAssembly Portal</h1>
+        <p>This is the browser-based collaboration interface for Bobtrax.</p>
+
+        <h2>Available WASM Engines</h2>
+        <p>Select a core audio engine to run in the browser:</p>
+
+        <div>
+            <!-- These would link to the actual generated .html/.js files from Emscripten -->
+            <a href="../bobui/build_wasm/index.html" class="button">Launch BobUI (WASM)</a>
+            <a href="../lmms/build_wasm/index.html" class="button">Launch LMMS Core (WASM)</a>
+        </div>
+
+        <p style="margin-top: 30px; font-size: 0.9em; color: #aaa;">
+            Note: Emscripten builds are required before launching. Run <code>./build_wasm.sh</code> in the project root.
+        </p>
+    </div>
+</body>
+</html>

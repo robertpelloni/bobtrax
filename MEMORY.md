@@ -236,3 +236,8 @@
 *   **Future Steps:**
     *   Integrate a live LLM API (OpenAI/Anthropic) or local inference engine (Llama.cpp) into the `mixing_assistant.py`.
     *   Implement stem separation capabilities (Spleeter/Demucs) bridged with the `bobtrax_launcher` UI.
+
+## Demucs Wrapper Implementation Notes
+*   **Stem Separation:** Integrated `demucs` via a python wrapper (`bobui/src/bobtrax_launcher/stem_separator.py`). The script calls the demucs CLI using Python's `subprocess` module.
+*   **Hardware Acceleration:** It handles optional CPU/CUDA execution via argparse (`--gpu` flag).
+*   **Integration Context:** Acts as a backend capability accessible by the unified `bobui` interface layer.
