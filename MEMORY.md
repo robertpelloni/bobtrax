@@ -241,3 +241,7 @@
 *   **Stem Separation:** Integrated `demucs` via a python wrapper (`bobui/src/bobtrax_launcher/stem_separator.py`). The script calls the demucs CLI using Python's `subprocess` module.
 *   **Hardware Acceleration:** It handles optional CPU/CUDA execution via argparse (`--gpu` flag).
 *   **Integration Context:** Acts as a backend capability accessible by the unified `bobui` interface layer.
+
+## WebAssembly Port Analysis (Phase 3)
+*   **Build System Compatibility:** Analyzed the core DAWs for WASM viability. `lmms` and `zrythm` are excellent candidates due to their CMake build systems and strong separation of DSP/GUI code. `muse` is heavily tied to native OS audio APIs (ALSA/JACK), and `ardour` uses a complex `waf` build system, making them low-priority/difficult targets for Emscripten.
+*   **Unified Strategy:** The focus for browser-based collaboration will be on compiling the `lmms` and `zrythm` DSP engines using `emcmake`, disabling all UI toolkits, and wrapping the output buffers in an Emscripten-bound C++ class to be loaded via JavaScript `AudioWorkletNode`s. Detailed findings are in `WASM_ANALYSIS.md`.
