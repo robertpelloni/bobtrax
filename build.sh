@@ -50,12 +50,34 @@ if [[ "$*" == *"--help"* ]]; then
 else
   echo "Starting bobtrax omni-build..."
 
+  echo ">>> Checking and installing Python dependencies..."
+  if command -v python3 &>/dev/null && command -v pip &>/dev/null; then
+      echo "Installing Demucs..."
+      pip install --upgrade demucs --break-system-packages || echo "Failed to install demucs. Stem separation may not work."
+  else
+      echo "Python3 or Pip is missing. Cannot install demucs for stem separation."
+  fi
+  echo "<<< Python dependencies setup finished."
+
+
   if [ "$BUILD_BOBUI" = true ]; then
       echo ">>> Building BobUI..."
       cd bobui
       mkdir -p build && cd build
       cmake .. || echo "CMake for BobUI failed, likely missing dependencies (e.g. OpenGL). Continuing..."
       make -j$(nproc) || echo "Make for BobUI failed. Continuing..."
+
+      echo ">>> Verifying stem separator functionality in BobUI..."
+      if [ -f "../src/bobtrax_launcher/stem_separator.py" ]; then
+          if python3 ../src/bobtrax_launcher/stem_separator.py --help > /dev/null; then
+              echo "Stem separator functionality verified."
+          else
+              echo "Warning: stem_separator.py verification failed."
+          fi
+      else
+          echo "Warning: stem_separator.py not found in expected location."
+      fi
+
       cd ../..
       echo "<<< BobUI build attempt finished."
   fi
