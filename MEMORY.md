@@ -245,3 +245,8 @@
 ## WebAssembly Port Analysis (Phase 3)
 *   **Build System Compatibility:** Analyzed the core DAWs for WASM viability. `lmms` and `zrythm` are excellent candidates due to their CMake build systems and strong separation of DSP/GUI code. `muse` is heavily tied to native OS audio APIs (ALSA/JACK), and `ardour` uses a complex `waf` build system, making them low-priority/difficult targets for Emscripten.
 *   **Unified Strategy:** The focus for browser-based collaboration will be on compiling the `lmms` and `zrythm` DSP engines using `emcmake`, disabling all UI toolkits, and wrapping the output buffers in an Emscripten-bound C++ class to be loaded via JavaScript `AudioWorkletNode`s. Detailed findings are in `WASM_ANALYSIS.md`.
+
+## `bobtrax_launcher` implementation (Phase 2)
+*   **Qt Universal Launcher:** Replaced the interim `launcher.py` and `gui_launcher.py` with a native Qt app `bobtrax_launcher` integrated directly into the `bobui` CMake build system (`bobui/src/bobtrax_launcher`).
+*   **Architecture:** It dynamically calculates the paths of the compiled submodules (LMMS, MusE, Zrythm, Ardour) relative to the root and spawns them as detached `QProcess`es.
+*   **Stem Separation UI Hook:** Contains a button to trigger the Demucs stem separator python script (`stem_separator.py`) to verify CLI integration before web porting.
