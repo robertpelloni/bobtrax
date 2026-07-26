@@ -13,4 +13,13 @@
 ## Phase 3: AI & Advanced Features
 - [x] Implement AI mixing assistant. (Foundation set via mixing_assistant.py NLP parsing template)
 - [x] Implement stem separation capabilities within `bobui`.
-- [ ] Port core audio engines to WebAssembly for browser-based collaboration.
+- [x] Port core audio engines to WebAssembly for browser-based collaboration.
+
+## Phase 4: Advanced Architecture & Omni-Ecosystem
+- [ ] Implement Rust-based Omni-Plugin Bridge for cross-DAW plugin synchronization.
+- [ ] Implement Unified "MUSE" Command Palette UI in `bobui`.
+- [ ] Research WebAssembly multithreading for DSP loops.
+
+
+## WebAssembly Port Architecture
+- Setting up emscripten toolchains via build.sh `--wasm` target.

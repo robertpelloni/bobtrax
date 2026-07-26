@@ -1,0 +1,12 @@
+[package]
+name = "omni_plugin_bridge"
+version = "0.1.0"
+edition = "2021"
+description = "A Rust-based cross-DAW plugin wrapper for VST/LV2 sharing across LMMS and Ardour"
+
+[lib]
+name = "omni_bridge"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Dependencies for LV2/VST bindings and IPC will be added here

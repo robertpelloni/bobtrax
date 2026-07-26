@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bobtrax WebAssembly Collaboration</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        .log { background: #eee; padding: 10px; font-family: monospace; white-space: pre-wrap; height: 300px; overflow-y: auto; }
+        button { padding: 10px 20px; font-size: 16px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Bobtrax WebAssembly Audio Engine</h1>
+    <p>This is a proof of concept for the browser-based collaboration port of the LMMS audio engine.</p>
+
+    <div>
+        <button id="btn-start" disabled>Start Engine</button>
+        <button id="btn-stop" disabled>Stop Engine</button>
+    </div>
+
+    <h3>Output Log:</h3>
+    <div id="output" class="log">Initializing...</div>
+
+    <script>
+        const output = document.getElementById('output');
+        function log(msg) {
+            output.textContent += '\n' + msg;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        var engineInstance = null;
+
+        var Module = {
+            onRuntimeInitialized: function() {
+                log("WASM Runtime Initialized.");
+                document.getElementById('btn-start').disabled = false;
+
+                try {
+                    engineInstance = new Module.WasmAudioEngine();
+                    log("WasmAudioEngine class instantiated.");
+                } catch (e) {
+                    log("Error instantiating WasmAudioEngine. Ensure --bind was linked. " + e);
+                }
+            }
+        };
+    </script>
+    <!-- The actual compiled js will be placed here by the build script, we reference it -->
+    <script src="lmms.js"></script>
+    <script>
+
+        document.getElementById('btn-start').addEventListener('click', () => {
+            if (engineInstance) {
+                engineInstance.start();
+                log("Called start().");
+                document.getElementById('btn-start').disabled = true;
+                document.getElementById('btn-stop').disabled = false;
+            }
+        });
+
+        document.getElementById('btn-stop').addEventListener('click', () => {
+            if (engineInstance) {
+                engineInstance.stop();
+                log("Called stop().");
+                document.getElementById('btn-start').disabled = false;
+                document.getElementById('btn-stop').disabled = true;
+            }
+        });
+    </script>
+</body>
+</html>

@@ -3,3 +3,5 @@ __pycache__/
 
 # Jules AI session logs (auto-generated, not needed in repo)
 .jules/sessions/
+omni_plugin_bridge/target/
+*.py
