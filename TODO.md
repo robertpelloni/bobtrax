@@ -11,3 +11,7 @@
 - [x] Connect `mixing_assistant.py` to a real LLM backend API (OpenAI/Anthropic or local inference).
 - [x] Refine the system prompt in the mixing assistant to provide the LLM with the exact current track list and available OSC address schema of the running DAWs.
 - [x] Implement Demucs-based python stem separator wrapper into bobui src/bobtrax_launcher.
+
+- [ ] Scaffold `omni_plugin_bridge` directory and Cargo workspace for Rust development.
+- [ ] Research and design the LV2/VST bridging mechanism for LMMS and Ardour.
+- [ ] Design the UI mockup for the MUSE Command Palette within `bobui`.

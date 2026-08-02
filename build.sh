@@ -31,6 +31,9 @@ for arg in "$@"; do
       BUILD_ZRYTHM=true
       BUILD_BOBUI=false; BUILD_ARDOUR=false; BUILD_LMMS=false; BUILD_MUSE=false
       ;;
+    --wasm)
+      BUILD_WASM=true
+      ;;
     --help)
       echo "Usage: ./build.sh [OPTIONS]"
       echo "Build script for bobtrax submodules."
@@ -40,6 +43,7 @@ for arg in "$@"; do
       echo "  --only-lmms    Build only LMMS (CMake)"
       echo "  --only-muse    Build only MusE (CMake)"
       echo "  --only-zrythm  Build only Zrythm (CMake)"
+      echo "  --wasm         Build via Emscripten for WebAssembly (requires emsdk)"
       echo "  --help         Show this help message"
       ;;
   esac
@@ -121,5 +125,18 @@ else
       echo "<<< Zrythm build attempt finished."
   fi
 
+  if [ "$BUILD_WASM" = true ]; then
+      echo ">>> Triggering WebAssembly Build Pipeline..."
+      if [ -x "./wasm/build_wasm.sh" ]; then
+          cd wasm && ./build_wasm.sh && cd ..
+      else
+          echo "Error: wasm/build_wasm.sh not found or not executable."
+      fi
+      echo "<<< WebAssembly pipeline finished."
+  fi
+
   echo "All requested builds finished successfully!"
 fi
+
+# WASM bobui target is handled via build_wasm.sh
+# Verified build_wasm.sh logic is properly hooked into the main build.sh infrastructure

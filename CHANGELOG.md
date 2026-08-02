@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.16] - 2026-06-30
+### Added
+- Created `build_wasm.sh` to compile core audio engines (LMMS) to WebAssembly via Emscripten.
+- Added `wasm_launcher/index.html` to serve as a browser-based frontend for interacting with the WASM engines.
+- Created `WasmAudioEngine.cpp` in `lmms/src/core` with Emscripten `--bind` exports and updated CMake logic.
+- Implemented `wasm_host.py` and `wasm_panel.py` in `bobui/src/bobtrax_launcher` to allow `bobui` to spawn a local web server for the WebAssembly frontend.
+
+
 ## [1.0.15] - 2026-04-16
 ### Added
 - Added stem separation wrapper using Demucs in bobui/src/bobtrax_launcher/stem_separator.py.

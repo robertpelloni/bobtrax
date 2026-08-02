@@ -40,6 +40,33 @@
     *   `VISION.md` for the philosophical goals of the project.
     *   `MEMORY.md` & `HANDOFF.md` for AI-to-AI context passing.
 
+### Submodule WASM Compatibility: Ardour
+*   **Assessment:** Ardour is currently **highly incompatible** with the Emscripten toolchain out of the box.
+*   **Blockers:** The initial blockers reside deep within its `wscript` (Waf) build system. When executed within an `emconfigure` context, the build system fails immediately during git revision parsing and assumes standard POSIX/desktop environment tooling. Furthermore, Ardour's monolithic architecture intertwines UI (GTK) and audio processing deeply, meaning porting the DSP engine to WASM would require an extreme refactor to separate the core from the UI, well beyond modifying compiler flags.
+*   **Recommendation:** Prioritize CMake-based, highly decoupled submodules (like LMMS and potentially Zrythm) for WebAssembly porting.
+
+### WebAssembly Porting Context
+*   **Infrastructure:** A unified `build_wasm.sh` script (invokable via `./build.sh --wasm`) handles cross-compilation of core C++ audio engines utilizing Emscripten. It expects the `emsdk` toolchain (e.g., `emcmake` and `emmake`) to be globally available in the environment.
+*   **Submodule Adapation:** The `lmms` audio engine currently acts as the test-bed. A custom `WasmAudioEngine.cpp` wrapper file has been created inside `lmms/src/core/` leveraging `<emscripten/bind.h>`. The core `CMakeLists.txt` detects the `EMSCRIPTEN` variable injected by `emcmake` and dynamically injects the `--bind` link option.
+*   **Frontend Routing:** Instead of embedding a chromium view via QtWebEngine, the `bobui` framework spawns a localized HTTP Server (`wasm_host.py`) mapping to `wasm_launcher/index.html`. This avoids extreme binary bloat while maintaining seamless GUI integration via `wasm_panel.py`.
+
+### WebAssembly Porting Audit: Audio Backends & Emscripten Compatibility
+*   **ALSA / JACK / PulseAudio Blockers:** The core DAWs (Ardour, LMMS, MusE, Zrythm) are heavily coupled to native Linux audio backends (ALSA, JACK) or Windows/Mac equivalents. Emscripten does not natively support these.
+*   **Mitigation Strategy:**
+    1.  *Phase A (Stubs):* Initially compile with `--disable-alsa`, `--disable-jack` (or CMake equivalents) and use dummy backend stubs to verify core DSP compilation (which has been scaffolded via `WasmAudioEngine.cpp`).
+    2.  *Phase B (WebAudio):* Write custom Audio I/O classes that bridge `emscripten/html5.h` (WebAudio API / AudioWorklets) to the internal audio rings of the DAWs.
+*   **Build System Audit:**
+    *   **LMMS / Zrythm (CMake/Meson):** Highly compatible. They allow explicitly turning off features (`-DWANT_ALSA=OFF`) enabling clean WASM compilation of the DSP core.
+    *   **Ardour (Waf):** Highly incompatible. `wscript` actively attempts to probe the host OS for dependencies (`pkg-config alsa jack`) during configure, causing `emconfigure` to fail immediately. Modifying this requires extensive forks of the `wscript` architecture.
+
+### Core Audio Engine WebAssembly Build Research
+*   **Directory Structure:** The entire WebAssembly pipeline has been moved into the dedicated `wasm/` directory to cleanly separate it from native build artifacts. This includes `wasm/build_wasm.sh` and the frontend `wasm/wasm_launcher/`.
+### Core Audio Engine WebAssembly Build Research
+*   **Toolchain:** The Emscripten SDK (`emsdk`) is the required toolchain. It provides `emcc`/`em++` for compiling C/C++ to WASM and JS, and `emcmake`/`emmake` to wrap standard build systems.
+*   **LMMS:** Uses CMake. Porting is viable. Required exposing the core DSP `lmms::Engine` using `<emscripten/bind.h>` and passing `--bind` during the linker phase.
+*   **MusE & Zrythm:** Both use CMake (or Meson) and show high structural compatibility for similar Emscripten wrapper classes (`WasmZrythmEngine.cpp`).
+*   **Ardour:** Ardour uses the `Waf` build system (`wscript`). Research indicates massive incompatibility; `emconfigure ./waf configure` fails immediately due to git revision parsing scripts and deep assumptions about native desktop tooling (GTK2/3, ALSA, JACK). The UI and DSP are too tightly coupled to easily isolate the audio core for WASM.
+
 ## 4. Future Directions (From IDEAS.md)
 *   **Cross-DAW Plugin Wrapping:** Creating a bridge to share VST/LV2 plugins simultaneously across LMMS and Ardour.
 *   **AI Integration:** Injecting SLMs (Small Language Models) for autonomous stem separation and mixing assistance directly into the `bobui` layer.
