@@ -1,0 +1,19 @@
+Setting top to                           : /app/ardour
+Setting out to                           : /app/ardour/build
+Checking for 'gcc' (C compiler)          : /usr/bin/gcc
+Checking for 'g++' (C++ compiler)        : /usr/bin/g++
+
+Global Configuration
+ * Install prefix                                    : /usr/local
+ * Debuggable build                                  : True
+ * Build documentation                               : False
+
+Ardour Configuration
+ * Will build against private GTK dependency stack   : no
+ * Will rely on libintl built into libc              : yes
+ * Will build against private Ardour dependency stack : no
+Checking for function 'dlopen' in dlfcn.h            : yes
+Checking for boost library >= 1.68                   : no
+The configuration failed
+(complete log in /app/ardour/build/config.log)
+The project was not configured: run "waf configure" first!

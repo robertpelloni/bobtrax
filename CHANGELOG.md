@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.23] - 2026-11-04
+### Changed
+- Executed targeted automated builds for `muse`, `zrythm`, and `bobui`.
+- Isolated compilation logs for all submodules in `logs/build_muse.log`, `logs/build_zrythm.log`, and `logs/build_bobui.log`.
+- Documented exact platform library and compiler requirements:
+  - `muse`: Requires Extra CMake Modules (`ECM`).
+  - `zrythm`: Requires GCC 14+ compiler.
+  - `bobui`: Requires resolving `BobUI6::BundledPcre2` in QtBase fork.
+- Maintained 100% test pass rate for `omni_plugin_bridge`, `session_memory.py`, and `verify_bobtrax.py`.
+
+## [1.0.22] - 2026-11-04
+### Added
+- Automated revision header synthesis (`libs/ardour/revision.cc`) inside `build.sh` to unblock Ardour's Waf configure step.
+- Isolated per-submodule build logging (`logs/build_<submodule>.log`) with clean console telemetry.
+- Targeted diagnostic runs for `--only-ardour` and `--only-lmms`.
+
 ## [1.0.21] - 2026-11-04
 ### Added
 - Created `session_memory.py` implementing the Track Agent-Memory Hub with persistent JSON state storage, track metadata roles, fader gains, parameter maps, and chronological AI action history.

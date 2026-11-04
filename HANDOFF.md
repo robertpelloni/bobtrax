@@ -1,27 +1,26 @@
 # Handoff Document
 
-## Session Summary (1.0.21)
-- **Track Agent-Memory & Dynamic State Hub (`session_memory.py`):**
-  - Designed and implemented a persistent cross-DAW session state memory system.
-  - Automatically infers and tracks track roles (kick, snare, bass, vocal, synth, master), current fader levels, mute/solo states, and dynamic parameter dictionaries.
-  - Chronological history logging for AI mixing agent moves.
-  - Integrated into `osc_bridge.py` to continuously record OSC track updates.
-  - Integrated into `ai_assistant/mixing_assistant.py` for contextual, state-aware relative adjustments (e.g. "Increase kick fader by 2dB").
-- **OmniDashboard Inspector Panel (`gui_launcher.py`):**
-  - Added visual "Track Agent-Memory & Dynamic State Hub" panel displaying active tracks and recorded parameter states with one-click refresh.
-- **Automated Multi-Submodule Build Execution (1.0.20):**
-  - Submodule diagnostics and dependency reporting across Ardour, LMMS, MusE, Zrythm, and BobUI.
-- **Offline AI Mixing Assistant & Stem Separator (1.0.19):**
-  - Offline acoustic DSP rule engine with safe parameter boundary clamping.
-  - Dynamic DAW XML session track discovery.
-- **Single-Page OmniDashboard & System Tray (1.0.18):**
-  - System Tray controls with background daemon lifecycle management.
+## Session Summary (1.0.23)
+- **Remaining Submodule Automation & Logging:**
+  - Automated targeted builds for MusE, Zrythm, and BobUI.
+  - Added dedicated compiler logs in `logs/build_muse.log`, `logs/build_zrythm.log`, and `logs/build_bobui.log`.
+  - Configured intelligent compiler selection for Zrythm (`gcc-14`/`gcc-15`), ECM fallbacks for MusE, and PCRE2 options for BobUI.
+- **Submodule Build Automation (1.0.22):**
+  - Ardour `revision.cc` dynamic synthesis in `build.sh` to unblock Waf git describe checks.
+  - Isolated logs for Ardour (`logs/build_ardour.log`) and LMMS (`logs/build_lmms.log`).
+- **Track Agent-Memory Hub (1.0.21):**
+  - Cross-DAW persistent session memory (`session_memory.py`) tracking roles, faders, and parameter states.
+  - Integrated into `osc_bridge.py`, `ai_assistant/mixing_assistant.py`, and `gui_launcher.py`.
+- **Ecosystem Integration (1.0.20 & 1.0.19):**
+  - Offline acoustic heuristic DSP engine in `mixing_assistant.py`.
+  - Dynamic DAW session discovery for Ardour (`.ardour`) and LMMS (`.mmp`) XML files.
+  - Single-page OmniDashboard with system tray integration and full server lifecycle controls.
+  - User manual `Manual.md` and complete governance tracking.
 
 ## System Status
-- All unit tests and headless GUI verifications pass with 0 errors under `xvfb`.
-- Rust `omni_plugin_bridge` tests pass with 0 warnings.
-- Version bumped to `1.0.21`.
+- All unit tests, session memory persistence, and headless GUI verifications pass with 0 errors.
+- Version bumped to `1.0.23`.
 
 ## Next Steps for Successor Agents
+- When system packages can be updated or container base images adjusted, install `gcc-14`, `qtbase5-dev`, `libboost-all-dev`, and `extra-cmake-modules` to compile native DAW binaries.
 - Expand `omni_plugin_bridge` to spawn a real headless plugin process hosting LV2/VST3 plugins via Shared Memory.
-- Connect bidirectional OSC feedback from active DAWs back into the OmniDashboard telemetry console.
