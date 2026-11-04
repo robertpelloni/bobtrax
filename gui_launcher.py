@@ -308,9 +308,13 @@ class OmniDashboard(tk.Tk):
             b.pack(side="left", padx=2)
             ToolTip(b, f"Populate prompt with: '{pval}'")
 
-        self.load_stems_btn = ttk.Button(preset_row, text="Attach Stems Context", command=self.load_stems)
+        self.load_stems_btn = ttk.Button(preset_row, text="Attach Stems", command=self.load_stems)
         self.load_stems_btn.pack(side="right", padx=(4, 0))
         ToolTip(self.load_stems_btn, "Select audio track files to populate session track names in the AI prompt context.")
+
+        self.discover_session_btn = ttk.Button(preset_row, text="Scan DAW Session", command=self.discover_session_file)
+        self.discover_session_btn.pack(side="right", padx=(4, 0))
+        ToolTip(self.discover_session_btn, "Scan an Ardour (.ardour) or LMMS (.mmp) session file to discover project tracks.")
 
         self.stem_lbl = tk.Label(preset_row, text="No track context attached.", fg="#666", font=("Helvetica", 8))
         self.stem_lbl.pack(side="right", padx=6)
@@ -708,6 +712,23 @@ class OmniDashboard(tk.Tk):
             self.stem_lbl.config(text=f"Attached {len(stems)} track(s).", fg="#2e7d32")
             stem_names = [os.path.basename(s) for s in stems]
             self.log(f"Track context attached: {', '.join(stem_names)}")
+
+    def discover_session_file(self):
+        filename = filedialog.askopenfilename(
+            title="Select DAW Session File",
+            filetypes=[("DAW Sessions", "*.ardour *.mmp *.xml"), ("All Files", "*.*")]
+        )
+        if filename:
+            try:
+                cmd = [sys.executable, MIXING_ASSISTANT_PY, "--session", filename, "status", "--dry-run"]
+                res = subprocess.run(cmd, capture_output=True, text=True)
+                self.stem_lbl.config(text=f"Session: {os.path.basename(filename)}", fg="#2e7d32")
+                self.log(f"Discovered session file: {filename}")
+                if res.stdout:
+                    for line in res.stdout.strip().split("\n"):
+                        self.log(line)
+            except Exception as e:
+                self.log(f"Error scanning session file: {e}")
 
     def browse_audio_file(self):
         filename = filedialog.askopenfilename(

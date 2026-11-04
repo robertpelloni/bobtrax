@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.20] - 2026-11-04
+### Changed
+- Executed full automated multi-submodule build orchestration (`./build.sh --all`).
+- Documented precise compiler and dependency diagnostics across all 5 submodules in `MEMORY.md` and `DEPLOY.md`:
+  - `bobui`: `BobUI6::BundledPcre2` dependency issue in QtBase fork.
+  - `ardour`: Waf revision generator requiring `git describe` tags to create `libs/ardour/revision.cc`.
+  - `lmms`: Requires `Qt5Config.cmake` (5.15.0+).
+  - `muse`: Requires KDE Extra CMake Modules (`ECM`).
+  - `zrythm`: Requires GCC 14+ (environment currently has GCC 13.3).
+  - `omni_plugin_bridge`: 100% build and test success in Rust.
+  - Subsystem verification tool passes all tests.
+
+## [1.0.19] - 2026-11-04
+### Added
+- Dynamic DAW session track discovery in `ai_assistant/mixing_assistant.py` supporting Ardour XML (`.ardour`), LMMS XML (`.mmp`), and environment variable overrides (`BOBTRAX_TRACKS`).
+- Offline Acoustic Heuristic DSP Rule Engine in `mixing_assistant.py` that translates natural language mixing moves to concrete OSC parameters completely offline without external API keys.
+- Parameter boundary validation and safe clamping on all generated OSC mixing paths.
+- "Scan DAW Session" button and track inspection tools in the Omni-Dashboard (`gui_launcher.py`).
+
 ## [1.0.18] - 2026-11-04
 ### Added
 - Complete single-page redesign of the Bobtrax Omni-Dashboard (`gui_launcher.py`) with high-value prioritization, live service status badges, quick transport shortcuts, and comprehensive safe ToolTip annotations.
