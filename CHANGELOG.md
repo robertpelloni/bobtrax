@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.18] - 2026-11-04
+### Added
+- Complete single-page redesign of the Bobtrax Omni-Dashboard (`gui_launcher.py`) with high-value prioritization, live service status badges, quick transport shortcuts, and comprehensive safe ToolTip annotations.
+- Full System Tray integration using `pystray` with graceful fallback for headless displays, providing background daemon controls (Show/Hide, Start All Servers, Stop All Servers, Open Browser, Quit Bobtrax).
+- Background server lifecycle controls for WebAssembly Collaboration Server (`wasm_host.py`), Central OSC Bridge (`osc_bridge.py`), and WebSocket-to-OSC Gateway (`osc_web_wrapper.py`).
+- Standalone helper module `wasm_host.py` with CORS/SharedArrayBuffer headers for browser audio worklets.
+- Standalone helper module `stem_separator.py` wrapping Demucs with model selection, GPU toggle, and high-fidelity simulated fallback.
+- Added user manual `Manual.md` detailing end-to-end operation of all ecosystem components.
+- Automated dependency diagnostics (`./build.sh --check-deps`) and submodule build orchestration in `build.sh`.
+
+### Changed
+- Refactored `omni_plugin_bridge/src/lib.rs` to remove unused `UnixStream` import, ensuring clean compiler output during `cargo test`.
+- Corrected `.gitignore` to allow required Python helper tools.
+- Updated all governance documents (`MEMORY.md`, `HANDOFF.md`, `ROADMAP.md`, `TODO.md`, `DEPLOY.md`, `IDEAS.md`).
+
 ## [1.0.16] - 2026-06-30
 ### Added
 - Created `build_wasm.sh` to compile core audio engines (LMMS) to WebAssembly via Emscripten.

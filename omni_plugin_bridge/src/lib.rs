@@ -10,7 +10,7 @@
 
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::os::unix::net::{UnixListener, UnixStream};
+use std::os::unix::net::UnixListener;
 use std::io::{Read, Write};
 
 // Mock IPC Buffer representing shared audio arrays
