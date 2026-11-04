@@ -32,6 +32,12 @@ except ImportError:
 else:
     HAS_OSC = True
 
+try:
+    import session_memory
+    memory_hub = session_memory.SessionMemory()
+except Exception:
+    memory_hub = None
+
 # Known default OSC ports for the DAWs
 DAW_CLIENTS = {
     'ardour': ('127.0.0.1', 3819),
@@ -71,6 +77,14 @@ def broadcast_handler(address, *args):
     Catches incoming OSC messages, checks for translations, and routes them.
     """
     logging.info(f"Received message on {address} with arguments: {args}")
+
+    # Track Agent-Memory integration: Automatically record track parameter mutations
+    if memory_hub and address.startswith("/track/"):
+        val = args[0] if args else 1.0
+        try:
+            memory_hub.record_osc_change(address, float(val))
+        except Exception as e:
+            logging.debug(f"Failed to record OSC to session memory: {e}")
 
     action = INCOMING_MAP.get(address)
 

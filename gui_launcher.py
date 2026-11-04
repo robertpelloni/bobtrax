@@ -28,6 +28,11 @@ try:
 except ImportError:
     launcher = None
 
+try:
+    import session_memory
+except ImportError:
+    session_memory = None
+
 # Optional System Tray & Image support
 try:
     import pystray
@@ -355,6 +360,36 @@ class OmniDashboard(tk.Tk):
         ToolTip(self.separate_btn, "Split chosen audio file into drums, bass, vocals, and other tracks.")
 
         # -------------------------------------------------------------
+        # 3.5 Section: Track Agent-Memory & Dynamic State Hub
+        # -------------------------------------------------------------
+        mem_frame = tk.LabelFrame(
+            self.content_frame,
+            text=" Track Agent-Memory & Dynamic State Hub ",
+            font=("Helvetica", 10, "bold"),
+            padx=10,
+            pady=8
+        )
+        mem_frame.pack(fill="x", pady=4)
+        ToolTip(mem_frame, "Shared inter-DAW session memory tracking active tracks, fader gains, and AI mixing history.")
+
+        mem_ctrl_bar = tk.Frame(mem_frame)
+        mem_ctrl_bar.pack(fill="x", pady=(0, 4))
+
+        tk.Label(mem_ctrl_bar, text="Active Session Memory Tracks:", font=("Helvetica", 9, "bold")).pack(side="left")
+
+        self.refresh_mem_btn = ttk.Button(mem_ctrl_bar, text="Refresh Memory", command=self.refresh_session_memory)
+        self.refresh_mem_btn.pack(side="right", padx=2)
+        ToolTip(self.refresh_mem_btn, "Reload track states and history from session memory.")
+
+        self.mem_status_lbl = tk.Label(mem_ctrl_bar, text="", font=("Helvetica", 8, "italic"), fg="#555")
+        self.mem_status_lbl.pack(side="right", padx=6)
+
+        # Track State Display Box
+        self.mem_display = tk.Text(mem_frame, height=4, bg="#21252b", fg="#98c379", font=("Monospace", 8), state="disabled", wrap="word")
+        self.mem_display.pack(fill="x")
+        ToolTip(self.mem_display, "Current parameter snapshot recorded by the Track Agent-Memory hub.")
+
+        # -------------------------------------------------------------
         # 4. Section: Real-Time IPC & Collaboration Hub
         # -------------------------------------------------------------
         ipc_frame = tk.LabelFrame(
@@ -525,7 +560,8 @@ class OmniDashboard(tk.Tk):
         self.log_text = tk.Text(log_frame, height=8, bg="#181a1f", fg="#abb2bf", insertbackground="white", font=("Monospace", 8), state="disabled", wrap="word")
         self.log_text.pack(fill="both", expand=True)
 
-        self.log("Omni-Dashboard v1.0.18 initialized. Autopilot mode active. All subsystems ready.")
+        self.log("Omni-Dashboard v1.0.21 initialized. Autopilot mode active. All subsystems ready.")
+        self.refresh_session_memory()
 
     def _on_canvas_configure(self, event):
         self.main_canvas.itemconfig(self.canvas_window, width=event.width)
@@ -550,6 +586,25 @@ class OmniDashboard(tk.Tk):
         self.log_text.insert(tk.END, formatted)
         self.log_text.see(tk.END)
         self.log_text.config(state="disabled")
+
+    def refresh_session_memory(self):
+        if not session_memory:
+            return
+        try:
+            mem = session_memory.SessionMemory()
+            summary = mem.get_summary()
+            lines = []
+            for t_name, t_info in summary["tracks"].items():
+                params_str = ", ".join([f"{k}:{v}" for k, v in t_info.get("parameters", {}).items()])
+                lines.append(f"• {t_name.upper()} [{t_info.get('role')}]: fader={t_info.get('fader')}dB | {params_str or 'default'}")
+
+            self.mem_status_lbl.config(text=f"{summary['total_tracks']} tracks | {len(summary['recent_actions'])} actions")
+            self.mem_display.config(state="normal")
+            self.mem_display.delete("1.0", tk.END)
+            self.mem_display.insert(tk.END, "\n".join(lines) if lines else "No track state recorded.")
+            self.mem_display.config(state="disabled")
+        except Exception as e:
+            self.log(f"Session memory refresh error: {e}")
 
     def clear_log(self):
         self.log_text.config(state="normal")

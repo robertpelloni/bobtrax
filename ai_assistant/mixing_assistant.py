@@ -38,6 +38,12 @@ try:
 except ImportError:
     HAS_OPENAI = False
 
+try:
+    import session_memory
+    memory_hub = session_memory.SessionMemory()
+except Exception:
+    memory_hub = None
+
 OSC_BRIDGE_IP = "127.0.0.1"
 OSC_BRIDGE_PORT = 8000
 
@@ -215,13 +221,40 @@ def heuristic_dsp_rules(prompt_text, available_tracks):
         if "loud" in p or "limit" in p:
             moves.append((f"/track/{track}/limiter/gain", 3.0))
 
+    # Relative gain / fader adjustments using Track Agent-Memory state
+    if "fader" in p or "volume" in p or "level" in p or "boost" in p or "cut" in p:
+        target_name = best_track(available_tracks)
+        current_fader = 0.0
+        if memory_hub and target_name in memory_hub.tracks:
+            current_fader = memory_hub.tracks[target_name].fader
+
+        # Parse relative dB delta if present
+        db_match = re.search(r'([+-]?\d+(?:\.\d+)?)\s*(?:db)?', p)
+        delta = float(db_match.group(1)) if db_match else 2.0
+        if "lower" in p or "reduce" in p or "cut" in p:
+            delta = -abs(delta)
+        else:
+            delta = abs(delta)
+
+        new_fader = current_fader + delta
+        moves.append((f"/track/{target_name}/fader", new_fader))
+
     # Fallback default if nothing matched
     if not moves:
         track = available_tracks[0] if available_tracks else "master"
         moves.append((f"/track/{track}/eq/high_shelf", 1.5))
         moves.append((f"/track/{track}/compressor/threshold", -10.0))
 
-    return [(path, clamp_parameter(path, val)) for path, val in moves]
+    final_moves = [(path, clamp_parameter(path, val)) for path, val in moves]
+
+    # Record action in session memory
+    if memory_hub:
+        try:
+            memory_hub.record_action("ai_mixing_assistant", prompt_text, final_moves)
+        except Exception:
+            pass
+
+    return final_moves
 
 
 def parse_prompt_to_mix_moves(prompt_text, api_key=None, base_url=None, session_path=None):

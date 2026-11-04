@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.21] - 2026-11-04
+### Added
+- Created `session_memory.py` implementing the Track Agent-Memory Hub with persistent JSON state storage, track metadata roles, fader gains, parameter maps, and chronological AI action history.
+- Integrated `session_memory.py` into `osc_bridge.py` to auto-record real-time track parameter modifications.
+- Integrated `session_memory.py` into `ai_assistant/mixing_assistant.py` for state-aware relative fader adjustments and history recording.
+- Added visual "Track Agent-Memory & Dynamic State Hub" inspector panel to `gui_launcher.py`.
+
 ## [1.0.20] - 2026-11-04
 ### Changed
 - Executed full automated multi-submodule build orchestration (`./build.sh --all`).

@@ -1,0 +1,107 @@
+{
+  "tracks": {
+    "kick": {
+      "name": "kick",
+      "role": "kick",
+      "fader": 0.0,
+      "muted": false,
+      "soloed": false,
+      "parameters": {
+        "compressor/threshold": -18.5,
+        "eq/low_shelf": 3.0
+      },
+      "last_updated": 1793796965.4446821
+    },
+    "snare": {
+      "name": "snare",
+      "role": "snare",
+      "fader": 0.0,
+      "muted": false,
+      "soloed": false,
+      "parameters": {},
+      "last_updated": 1793796487.739952
+    },
+    "hihat": {
+      "name": "hihat",
+      "role": "cymbals",
+      "fader": 0.0,
+      "muted": false,
+      "soloed": false,
+      "parameters": {},
+      "last_updated": 1793796487.7399611
+    },
+    "bass": {
+      "name": "bass",
+      "role": "bass",
+      "fader": -3.0,
+      "muted": false,
+      "soloed": false,
+      "parameters": {
+        "fader": -3.0,
+        "compressor/threshold": -14.0
+      },
+      "last_updated": 1793796965.445348
+    },
+    "synth": {
+      "name": "synth",
+      "role": "synth",
+      "fader": 0.0,
+      "muted": false,
+      "soloed": false,
+      "parameters": {},
+      "last_updated": 1793796487.7399795
+    },
+    "vocals": {
+      "name": "vocals",
+      "role": "vocal",
+      "fader": 0.0,
+      "muted": false,
+      "soloed": false,
+      "parameters": {},
+      "last_updated": 1793796487.7399848
+    },
+    "master": {
+      "name": "master",
+      "role": "master",
+      "fader": 0.0,
+      "muted": false,
+      "soloed": false,
+      "parameters": {},
+      "last_updated": 1793796487.7399926
+    }
+  },
+  "history": [
+    {
+      "timestamp": 1793796487.7429469,
+      "time_str": "2026-11-04 12:48:07",
+      "agent": "ai_mixing_assistant",
+      "prompt": "Make the kick punchy and tighten bass",
+      "moves": [
+        [
+          "/track/kick/eq/low_shelf",
+          3.0
+        ],
+        [
+          "/track/bass/compressor/threshold",
+          -14.0
+        ]
+      ]
+    },
+    {
+      "timestamp": 1793796965.4446592,
+      "time_str": "2026-11-04 12:56:05",
+      "agent": "ai_mixing_assistant",
+      "prompt": "Make the kick punchy and tighten bass",
+      "moves": [
+        [
+          "/track/kick/eq/low_shelf",
+          3.0
+        ],
+        [
+          "/track/bass/compressor/threshold",
+          -14.0
+        ]
+      ]
+    }
+  ]
+}
