@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.24] - 2026-11-04
+### Added
+- Real-time IPC telemetry streaming from `osc_bridge.py` forward-broadcasting all routed and raw packets to `127.0.0.1:8005`.
+- Asynchronous UDP telemetry background listener in `gui_launcher.py` live-updating the system telemetry console.
+- Quick macro presets in MUSE Command Palette ("Mute All", "Reset Faders", "Solo Vox") with multi-track dispatch.
+
 ## [1.0.23] - 2026-11-04
 ### Changed
 - Executed targeted automated builds for `muse`, `zrythm`, and `bobui`.

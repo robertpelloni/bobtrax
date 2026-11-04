@@ -160,6 +160,9 @@ class OmniDashboard(tk.Tk):
         # Initialize System Tray
         self.init_system_tray()
 
+        # Start live background telemetry listener
+        self.start_telemetry_listener()
+
         # Intercept window close to support minimize-to-tray or clean shutdown
         self.protocol("WM_DELETE_WINDOW", self.on_close_requested)
 
@@ -259,15 +262,21 @@ class OmniDashboard(tk.Tk):
         exec_cmd_btn.pack(side="right")
         ToolTip(exec_cmd_btn, "Routes typed command to active DAWs via OSC Bridge or ecosystem logic.")
 
-        # Quick Transport Shortcuts
+        # Quick Transport Shortcuts & Macros
         shortcuts_bar = tk.Frame(muse_frame, pady=4)
         shortcuts_bar.pack(fill="x")
         tk.Label(shortcuts_bar, text="Quick Transport:", font=("Helvetica", 8, "bold"), fg="#555").pack(side="left", padx=(0, 6))
 
         for action_name, label_txt, symbol in [("play", "Play", "▶ Play"), ("stop", "Stop", "⏹ Stop"), ("record", "Record", "⏺ Record")]:
-            btn = ttk.Button(shortcuts_bar, text=symbol, command=lambda a=action_name: self.dispatch_transport(a), width=10)
-            btn.pack(side="left", padx=3)
+            btn = ttk.Button(shortcuts_bar, text=symbol, command=lambda a=action_name: self.dispatch_transport(a), width=9)
+            btn.pack(side="left", padx=2)
             ToolTip(btn, f"Send '{label_txt}' command through OSC Bridge to all active DAWs.")
+
+        tk.Label(shortcuts_bar, text="| Macros:", font=("Helvetica", 8, "bold"), fg="#555").pack(side="left", padx=(6, 4))
+        for macro_name, macro_cmd in [("Mute All", "mute all"), ("Reset Faders", "reset faders"), ("Solo Vox", "solo vocal")]:
+            b = ttk.Button(shortcuts_bar, text=macro_name, command=lambda c=macro_cmd: self._run_macro(c))
+            b.pack(side="left", padx=2)
+            ToolTip(b, f"Execute '{macro_cmd}' macro across session.")
 
         # -------------------------------------------------------------
         # 3. Section: AI Production Suite (Mixing Assistant + Stem Separation)
@@ -566,6 +575,37 @@ class OmniDashboard(tk.Tk):
     def _on_canvas_configure(self, event):
         self.main_canvas.itemconfig(self.canvas_window, width=event.width)
 
+    def _run_macro(self, macro_cmd):
+        self.muse_prompt.delete(0, tk.END)
+        self.muse_prompt.insert(0, macro_cmd)
+        self.execute_muse_command()
+
+    def start_telemetry_listener(self):
+        """Asynchronous UDP listener on 127.0.0.1:8005 to stream live bridge telemetry."""
+        import socket
+        def _listen():
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+                sock.bind(("127.0.0.1", 8005))
+                sock.settimeout(1.0)
+                while getattr(self, "_running", True):
+                    try:
+                        data, _ = sock.recvfrom(2048)
+                        text = data.decode("utf-8", errors="replace")
+                        # Clean OSC string if formatted
+                        clean_text = text.replace("/telemetry", "").strip()
+                        self.after(0, lambda m=clean_text: self.log(f"[IPC Telemetry] {m}"))
+                    except socket.timeout:
+                        continue
+                    except Exception:
+                        break
+                sock.close()
+            except Exception:
+                pass
+        self._running = True
+        threading.Thread(target=_listen, daemon=True).start()
+
     def _clear_muse_placeholder(self, event):
         if self.muse_prompt.get().startswith("Type command"):
             self.muse_prompt.delete(0, tk.END)
@@ -688,6 +728,7 @@ class OmniDashboard(tk.Tk):
 
     def quit_application(self):
         self.log("Shutting down Bobtrax Omni-Dashboard and terminating all servers...")
+        self._running = False
         self.stop_all_servers()
         if self.tray_icon:
             try:
@@ -725,6 +766,17 @@ class OmniDashboard(tk.Tk):
                 f"WebSocket: {'RUNNING' if self.processes['osc_web'] else 'STOPPED'}"
             )
             self.log(f"[MUSE Command Status] {status_summary}")
+        elif "mute all" in cmd_lower:
+            self.log("[MUSE Macro] Muting all session tracks...")
+            for t in ["kick", "snare", "hihat", "bass", "synth", "vocals"]:
+                self.send_osc_direct(f"/track/{t}/mute", 1.0)
+        elif "reset faders" in cmd_lower:
+            self.log("[MUSE Macro] Resetting all track faders to 0.0 dB...")
+            for t in ["kick", "snare", "hihat", "bass", "synth", "vocals", "master"]:
+                self.send_osc_direct(f"/track/{t}/fader", 0.0)
+        elif "solo vocal" in cmd_lower:
+            self.log("[MUSE Macro] Soloing vocal track and muting accompaniment...")
+            self.send_osc_direct("/track/vocals/solo", 1.0)
         else:
             self.log(f"[MUSE Command] Routing '{cmd}' to active DAW routing bridge.")
             self.send_osc_direct(f"/command/{cmd_lower.replace(' ', '_')}", 1.0)

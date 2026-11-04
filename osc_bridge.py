@@ -71,6 +71,16 @@ OUTGOING_MAP = {
 
 # Global clients map: { daw_name : SimpleUDPClient }
 clients = {}
+telemetry_client = None
+
+def send_telemetry(event_type, msg):
+    """Sends telemetry string to dashboard UDP listener on port 8005."""
+    global telemetry_client
+    if telemetry_client:
+        try:
+            telemetry_client.send_message("/telemetry", f"[{event_type}] {msg}")
+        except Exception:
+            pass
 
 def broadcast_handler(address, *args):
     """
@@ -89,22 +99,22 @@ def broadcast_handler(address, *args):
     action = INCOMING_MAP.get(address)
 
     if action:
-        logging.info(f"Translated '{address}' to standard action '{action}'")
+        info_msg = f"Translated '{address}' -> '{action}'"
+        logging.info(info_msg)
+        send_telemetry("ROUTED", info_msg)
         outgoing_commands = OUTGOING_MAP.get(action, {})
 
         for daw_name, target_address in outgoing_commands.items():
             client = clients.get(daw_name)
             if client:
                 try:
-                    # In a robust implementation, we would omit sending back to the originator.
-                    # Since we don't strictly know the originator by IP/Port alone easily here,
-                    # we broadcast to all. DAWs usually ignore redundant play commands.
                     client.send_message(target_address, args)
                     logging.debug(f"Broadcasted '{target_address}' to {daw_name} ({client._address}:{client._port})")
                 except Exception as e:
                     logging.error(f"Failed to broadcast to {daw_name} - {e}")
     else:
         logging.debug(f"No translation found for {address}. Broadcasting raw address.")
+        send_telemetry("RAW", f"Broadcast {address}: {args}")
         # Fallback: Just broadcast the raw address to everyone
         for daw_name, client in clients.items():
             try:
@@ -126,6 +136,7 @@ def main():
     parser = argparse.ArgumentParser(description="Bobtrax OSC Bridge - Central IPC Hub")
     parser.add_argument("--ip", default="127.0.0.1", help="The IP to listen on")
     parser.add_argument("--port", type=int, default=8000, help="The port to listen on")
+    parser.add_argument("--telemetry-port", type=int, default=8005, help="Port of dashboard telemetry listener")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
@@ -136,8 +147,10 @@ def main():
         logging.error("Exiting due to missing python-osc dependency.")
         sys.exit(1)
 
-    global clients
+    global clients, telemetry_client
     clients = setup_clients()
+    if HAS_OSC:
+        telemetry_client = SimpleUDPClient("127.0.0.1", args.telemetry_port)
 
     dispatcher = Dispatcher()
     # Map all incoming messages to the broadcast handler
