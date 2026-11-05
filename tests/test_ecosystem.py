@@ -23,6 +23,7 @@ import session_memory
 from ai_assistant import mixing_assistant
 import stem_separator
 import wasm_host
+import session_exporter
 
 
 class TestSessionMemory(unittest.TestCase):
@@ -126,6 +127,31 @@ class TestWasmHost(unittest.TestCase):
         # Verify WasmHandler includes Cross-Origin headers
         self.assertTrue(hasattr(wasm_host, "WasmHandler"))
         self.assertTrue(hasattr(wasm_host.WasmHandler, "end_headers"))
+
+
+class TestSessionExporter(unittest.TestCase):
+    def test_session_export_ardour_and_lmms(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracks = {
+                "kick": {"fader": 0.0, "muted": False, "soloed": False},
+                "bass": {"fader": -3.0, "muted": False, "soloed": False}
+            }
+            ardour_file = os.path.join(tmpdir, "test.ardour")
+            lmms_file = os.path.join(tmpdir, "test.mmp")
+            manifest_file = os.path.join(tmpdir, "manifest.json")
+
+            session_exporter.export_to_ardour(tracks, ardour_file)
+            session_exporter.export_to_lmms(tracks, lmms_file)
+            session_exporter.export_manifest(tracks, manifest_file)
+
+            self.assertTrue(os.path.exists(ardour_file))
+            self.assertTrue(os.path.exists(lmms_file))
+            self.assertTrue(os.path.exists(manifest_file))
+
+            with open(ardour_file) as f:
+                content = f.read()
+                self.assertIn("Session", content)
+                self.assertIn("Kick", content)
 
 
 if __name__ == "__main__":

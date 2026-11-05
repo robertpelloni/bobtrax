@@ -33,6 +33,11 @@ try:
 except ImportError:
     session_memory = None
 
+try:
+    import session_exporter
+except ImportError:
+    session_exporter = None
+
 # Optional System Tray & Image support
 try:
     import pystray
@@ -407,6 +412,10 @@ class OmniDashboard(tk.Tk):
         self.save_snap_btn = ttk.Button(mem_ctrl_bar, text="Save Snapshot", command=self.save_session_snapshot)
         self.save_snap_btn.pack(side="right", padx=2)
         ToolTip(self.save_snap_btn, "Save a named checkpoint of all track faders and settings.")
+
+        self.export_session_btn = ttk.Button(mem_ctrl_bar, text="Export Session...", command=self.export_session_dialog)
+        self.export_session_btn.pack(side="right", padx=2)
+        ToolTip(self.export_session_btn, "Export current session state to Ardour (.ardour) or LMMS (.mmp) project files.")
 
         self.mem_status_lbl = tk.Label(mem_ctrl_bar, text="", font=("Helvetica", 8, "italic"), fg="#555")
         self.mem_status_lbl.pack(side="right", padx=6)
@@ -809,6 +818,34 @@ class OmniDashboard(tk.Tk):
             w["solo_btn"].config(bg="#ffeb3b" if is_solo else "#3a3f4b", fg="#000" if is_solo else "#fff")
         self.send_osc_direct(f"/track/{track_name}/solo", 1.0 if is_solo else 0.0)
         self.log(f"Track {track_name.upper()} {'SOLOED' if is_solo else 'UNSOLOED'}.")
+
+    def export_session_dialog(self):
+        if not session_memory or not session_exporter:
+            self.log("Session exporter or session memory module missing.")
+            return
+
+        out_file = filedialog.asksaveasfilename(
+            title="Export Session To DAW",
+            defaultextension=".ardour",
+            filetypes=[
+                ("Ardour Session (*.ardour)", "*.ardour"),
+                ("LMMS Project (*.mmp)", "*.mmp"),
+                ("Universal Manifest (*.json)", "*.json"),
+                ("All Files", "*.*")
+            ]
+        )
+        if out_file:
+            try:
+                mem = session_memory.SessionMemory()
+                if out_file.endswith(".mmp"):
+                    session_exporter.export_to_lmms(mem.tracks, out_file)
+                elif out_file.endswith(".json"):
+                    session_exporter.export_manifest(mem.tracks, out_file)
+                else:
+                    session_exporter.export_to_ardour(mem.tracks, out_file)
+                self.log(f"[Session Exporter] Session exported successfully to: {out_file}")
+            except Exception as e:
+                self.log(f"Export session error: {e}")
 
     def save_session_snapshot(self):
         if not session_memory:

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.31] - 2026-11-04
+### Added
+- Cross-DAW Session Exporter engine in `session_exporter.py` generating Ardour XML (`.ardour`), LMMS XML (`.mmp`), and universal JSON arrangement manifests.
+- "Export Session..." dialog in `gui_launcher.py` under the Track Agent-Memory Hub.
+- Automated test cases for session export formats in `tests/test_ecosystem.py`.
+
 ## [1.0.30] - 2026-11-04
 ### Added
 - Snapshot Checkpoints (`save_checkpoint()`, `restore_checkpoint()`) and Undo action history (`undo_last_action()`) in `session_memory.py`.
