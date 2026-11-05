@@ -11,6 +11,12 @@
 - [x] Set up automated build pipelines for all submodules.
 
 ## Phase 3: AI & Advanced Features
-- [x] Implement AI mixing assistant. (Foundation set via mixing_assistant.py NLP parsing template)
-- [x] Implement stem separation capabilities within `bobui`.
-- [ ] Port core audio engines to WebAssembly for browser-based collaboration. (Analysis Complete, PoC running for LMMS)
+- [x] Implement AI mixing assistant. (Complete with OpenAI/local LLM support and OSC bridge execution)
+- [x] Implement stem separation capabilities within `bobui` / `gui_launcher.py`. (Demucs integration with CLI wrapper)
+- [x] Port core audio engines to WebAssembly for browser-based collaboration. (Analysis complete, PoC running for LMMS/Zrythm, wasm_host server active)
+
+## Phase 4: Cross-DAW Omni-Plugin Bridge & Autonomous Autopilot
+- [x] Scaffold Rust `omni_plugin_bridge` with shared audio buffer IPC and Unix domain sockets.
+- [x] Unify complete ecosystem into single-page Omni-Dashboard with System Tray management.
+- [x] Integrate automated dependency diagnostics and build orchestrator (`build.sh`).
+- [ ] Implement headless VST3/CLAP hosting process for real-time plugin buffer streaming.

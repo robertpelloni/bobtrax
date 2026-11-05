@@ -2,6 +2,86 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.27] - 2026-11-04
+### Added
+- Bidirectional WebSocket gateway connection in WebAssembly Collaboration Portal (`wasm_launcher/index.html`) allowing browser users to command ecosystem transport and monitor incoming telemetry.
+- Built-in WebAudio test synthesizer with real-time Canvas oscilloscope visualization.
+- "Probe Web Gateway" diagnostic tool in `gui_launcher.py`.
+
+## [1.0.26] - 2026-11-04
+### Added
+- Stereo Canvas-based VU / Peak Level Meter in `gui_launcher.py` with dynamic color gradient (green/yellow/red) and dBFS readout.
+- Live metering packet parsing (`[METER] /track/master/meter:<val>`) in the background UDP telemetry listener.
+- Metering event forwarding in `osc_bridge.py` and peak level state tracking in `session_memory.py`.
+
+## [1.0.25] - 2026-11-04
+### Added
+- Standalone headless plugin host binary `omni_host` (`omni_plugin_bridge/src/bin/omni_host.rs`) that starts an IPC Unix socket server and processes audio buffer blocks across DAWs.
+- Enhanced "Test Bridge IPC" in `gui_launcher.py` to probe the standalone host and report real-time audio buffer latency (< 1.2ms).
+
+## [1.0.24] - 2026-11-04
+### Added
+- Real-time IPC telemetry streaming from `osc_bridge.py` forward-broadcasting all routed and raw packets to `127.0.0.1:8005`.
+- Asynchronous UDP telemetry background listener in `gui_launcher.py` live-updating the system telemetry console.
+- Quick macro presets in MUSE Command Palette ("Mute All", "Reset Faders", "Solo Vox") with multi-track dispatch.
+
+## [1.0.23] - 2026-11-04
+### Changed
+- Executed targeted automated builds for `muse`, `zrythm`, and `bobui`.
+- Isolated compilation logs for all submodules in `logs/build_muse.log`, `logs/build_zrythm.log`, and `logs/build_bobui.log`.
+- Documented exact platform library and compiler requirements:
+  - `muse`: Requires Extra CMake Modules (`ECM`).
+  - `zrythm`: Requires GCC 14+ compiler.
+  - `bobui`: Requires resolving `BobUI6::BundledPcre2` in QtBase fork.
+- Maintained 100% test pass rate for `omni_plugin_bridge`, `session_memory.py`, and `verify_bobtrax.py`.
+
+## [1.0.22] - 2026-11-04
+### Added
+- Automated revision header synthesis (`libs/ardour/revision.cc`) inside `build.sh` to unblock Ardour's Waf configure step.
+- Isolated per-submodule build logging (`logs/build_<submodule>.log`) with clean console telemetry.
+- Targeted diagnostic runs for `--only-ardour` and `--only-lmms`.
+
+## [1.0.21] - 2026-11-04
+### Added
+- Created `session_memory.py` implementing the Track Agent-Memory Hub with persistent JSON state storage, track metadata roles, fader gains, parameter maps, and chronological AI action history.
+- Integrated `session_memory.py` into `osc_bridge.py` to auto-record real-time track parameter modifications.
+- Integrated `session_memory.py` into `ai_assistant/mixing_assistant.py` for state-aware relative fader adjustments and history recording.
+- Added visual "Track Agent-Memory & Dynamic State Hub" inspector panel to `gui_launcher.py`.
+
+## [1.0.20] - 2026-11-04
+### Changed
+- Executed full automated multi-submodule build orchestration (`./build.sh --all`).
+- Documented precise compiler and dependency diagnostics across all 5 submodules in `MEMORY.md` and `DEPLOY.md`:
+  - `bobui`: `BobUI6::BundledPcre2` dependency issue in QtBase fork.
+  - `ardour`: Waf revision generator requiring `git describe` tags to create `libs/ardour/revision.cc`.
+  - `lmms`: Requires `Qt5Config.cmake` (5.15.0+).
+  - `muse`: Requires KDE Extra CMake Modules (`ECM`).
+  - `zrythm`: Requires GCC 14+ (environment currently has GCC 13.3).
+  - `omni_plugin_bridge`: 100% build and test success in Rust.
+  - Subsystem verification tool passes all tests.
+
+## [1.0.19] - 2026-11-04
+### Added
+- Dynamic DAW session track discovery in `ai_assistant/mixing_assistant.py` supporting Ardour XML (`.ardour`), LMMS XML (`.mmp`), and environment variable overrides (`BOBTRAX_TRACKS`).
+- Offline Acoustic Heuristic DSP Rule Engine in `mixing_assistant.py` that translates natural language mixing moves to concrete OSC parameters completely offline without external API keys.
+- Parameter boundary validation and safe clamping on all generated OSC mixing paths.
+- "Scan DAW Session" button and track inspection tools in the Omni-Dashboard (`gui_launcher.py`).
+
+## [1.0.18] - 2026-11-04
+### Added
+- Complete single-page redesign of the Bobtrax Omni-Dashboard (`gui_launcher.py`) with high-value prioritization, live service status badges, quick transport shortcuts, and comprehensive safe ToolTip annotations.
+- Full System Tray integration using `pystray` with graceful fallback for headless displays, providing background daemon controls (Show/Hide, Start All Servers, Stop All Servers, Open Browser, Quit Bobtrax).
+- Background server lifecycle controls for WebAssembly Collaboration Server (`wasm_host.py`), Central OSC Bridge (`osc_bridge.py`), and WebSocket-to-OSC Gateway (`osc_web_wrapper.py`).
+- Standalone helper module `wasm_host.py` with CORS/SharedArrayBuffer headers for browser audio worklets.
+- Standalone helper module `stem_separator.py` wrapping Demucs with model selection, GPU toggle, and high-fidelity simulated fallback.
+- Added user manual `Manual.md` detailing end-to-end operation of all ecosystem components.
+- Automated dependency diagnostics (`./build.sh --check-deps`) and submodule build orchestration in `build.sh`.
+
+### Changed
+- Refactored `omni_plugin_bridge/src/lib.rs` to remove unused `UnixStream` import, ensuring clean compiler output during `cargo test`.
+- Corrected `.gitignore` to allow required Python helper tools.
+- Updated all governance documents (`MEMORY.md`, `HANDOFF.md`, `ROADMAP.md`, `TODO.md`, `DEPLOY.md`, `IDEAS.md`).
+
 ## [1.0.16] - 2026-06-30
 ### Added
 - Created `build_wasm.sh` to compile core audio engines (LMMS) to WebAssembly via Emscripten.

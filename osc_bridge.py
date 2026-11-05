@@ -32,6 +32,12 @@ except ImportError:
 else:
     HAS_OSC = True
 
+try:
+    import session_memory
+    memory_hub = session_memory.SessionMemory()
+except Exception:
+    memory_hub = None
+
 # Known default OSC ports for the DAWs
 DAW_CLIENTS = {
     'ardour': ('127.0.0.1', 3819),
@@ -65,6 +71,16 @@ OUTGOING_MAP = {
 
 # Global clients map: { daw_name : SimpleUDPClient }
 clients = {}
+telemetry_client = None
+
+def send_telemetry(event_type, msg):
+    """Sends telemetry string to dashboard UDP listener on port 8005."""
+    global telemetry_client
+    if telemetry_client:
+        try:
+            telemetry_client.send_message("/telemetry", f"[{event_type}] {msg}")
+        except Exception:
+            pass
 
 def broadcast_handler(address, *args):
     """
@@ -72,25 +88,38 @@ def broadcast_handler(address, *args):
     """
     logging.info(f"Received message on {address} with arguments: {args}")
 
+    # Track Agent-Memory integration: Automatically record track parameter mutations
+    if memory_hub and address.startswith("/track/"):
+        val = args[0] if args else 1.0
+        try:
+            memory_hub.record_osc_change(address, float(val))
+        except Exception as e:
+            logging.debug(f"Failed to record OSC to session memory: {e}")
+
+    # Forward live metering packets directly to telemetry listener
+    if "meter" in address or "peak" in address:
+        val = args[0] if args else 0.0
+        send_telemetry("METER", f"{address}:{val}")
+
     action = INCOMING_MAP.get(address)
 
     if action:
-        logging.info(f"Translated '{address}' to standard action '{action}'")
+        info_msg = f"Translated '{address}' -> '{action}'"
+        logging.info(info_msg)
+        send_telemetry("ROUTED", info_msg)
         outgoing_commands = OUTGOING_MAP.get(action, {})
 
         for daw_name, target_address in outgoing_commands.items():
             client = clients.get(daw_name)
             if client:
                 try:
-                    # In a robust implementation, we would omit sending back to the originator.
-                    # Since we don't strictly know the originator by IP/Port alone easily here,
-                    # we broadcast to all. DAWs usually ignore redundant play commands.
                     client.send_message(target_address, args)
                     logging.debug(f"Broadcasted '{target_address}' to {daw_name} ({client._address}:{client._port})")
                 except Exception as e:
                     logging.error(f"Failed to broadcast to {daw_name} - {e}")
     else:
         logging.debug(f"No translation found for {address}. Broadcasting raw address.")
+        send_telemetry("RAW", f"Broadcast {address}: {args}")
         # Fallback: Just broadcast the raw address to everyone
         for daw_name, client in clients.items():
             try:
@@ -112,6 +141,7 @@ def main():
     parser = argparse.ArgumentParser(description="Bobtrax OSC Bridge - Central IPC Hub")
     parser.add_argument("--ip", default="127.0.0.1", help="The IP to listen on")
     parser.add_argument("--port", type=int, default=8000, help="The port to listen on")
+    parser.add_argument("--telemetry-port", type=int, default=8005, help="Port of dashboard telemetry listener")
     parser.add_argument("--verbose", action="store_true", help="Enable debug logging")
     args = parser.parse_args()
 
@@ -122,8 +152,10 @@ def main():
         logging.error("Exiting due to missing python-osc dependency.")
         sys.exit(1)
 
-    global clients
+    global clients, telemetry_client
     clients = setup_clients()
+    if HAS_OSC:
+        telemetry_client = SimpleUDPClient("127.0.0.1", args.telemetry_port)
 
     dispatcher = Dispatcher()
     # Map all incoming messages to the broadcast handler
