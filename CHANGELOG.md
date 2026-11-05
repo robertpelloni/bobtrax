@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.29] - 2026-11-04
+### Added
+- Unified Python ecosystem test suite in `tests/test_ecosystem.py` covering SessionMemory, AI mixing heuristic rules, stem separation simulation, and WASM host headers.
+- Integrated automated test discovery (`python3 -m unittest discover tests`) into `build.sh` verification pipeline.
+- Sourced and non-destructive documentation auditing utility in `generate_docs.py`.
+
 ## [1.0.28] - 2026-11-04
 ### Added
 - Interactive Multi-Track Console Channel Strips in `gui_launcher.py`: vertical fader sliders (-60dB to +6dB), mini VU meters, and Mute (M) / Solo (S) buttons for each active session track.

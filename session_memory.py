@@ -64,13 +64,20 @@ class SessionMemory:
     _instance = None
 
     def __new__(cls, *args, **kwargs):
+        # Allow creating isolated instances if custom storage_path is passed
+        storage_path = kwargs.get('storage_path') or (args[0] if args else None)
+        if storage_path and storage_path != MEMORY_FILE:
+            instance = super(SessionMemory, cls).__new__(cls)
+            instance._initialized = False
+            return instance
+
         if not cls._instance:
             cls._instance = super(SessionMemory, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
     def __init__(self, storage_path=MEMORY_FILE):
-        if self._initialized:
+        if getattr(self, '_initialized', False) and self.storage_path == storage_path:
             return
         self.storage_path = storage_path
         self.tracks = {}
@@ -173,7 +180,7 @@ class SessionMemory:
             logging.warning(f"SessionMemory save warning: {e}")
 
     def _load(self):
-        if not os.path.exists(self.storage_path):
+        if not os.path.exists(self.storage_path) or os.path.getsize(self.storage_path) == 0:
             # Seed with archetypal multi-track session
             for name in ["kick", "snare", "hihat", "bass", "synth", "vocals", "master"]:
                 self.get_or_create_track(name)
