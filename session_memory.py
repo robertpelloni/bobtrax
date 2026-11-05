@@ -135,6 +135,25 @@ class SessionMemory:
     def get_track_list(self):
         return list(self.tracks.keys())
 
+    def set_fader(self, track_name, value):
+        track = self.get_or_create_track(track_name)
+        track.fader = float(value)
+        track.update_parameter("fader", float(value))
+        self._save()
+        return track.fader
+
+    def toggle_mute(self, track_name):
+        track = self.get_or_create_track(track_name)
+        track.muted = not track.muted
+        self._save()
+        return track.muted
+
+    def toggle_solo(self, track_name):
+        track = self.get_or_create_track(track_name)
+        track.soloed = not track.soloed
+        self._save()
+        return track.soloed
+
     def get_summary(self):
         return {
             "total_tracks": len(self.tracks),
