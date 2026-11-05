@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.32] - 2026-11-04
+### Added
+- Continuous Background System Health Watchdog daemon in `health_watchdog.py` probing HTTP, TCP, UDP, and Unix socket endpoints with self-healing capabilities.
+- Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
+- Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
+
 ## [1.0.31] - 2026-11-04
 ### Added
 - Cross-DAW Session Exporter engine in `session_exporter.py` generating Ardour XML (`.ardour`), LMMS XML (`.mmp`), and universal JSON arrangement manifests.

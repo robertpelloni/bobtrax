@@ -24,6 +24,7 @@ from ai_assistant import mixing_assistant
 import stem_separator
 import wasm_host
 import session_exporter
+import health_watchdog
 
 
 class TestSessionMemory(unittest.TestCase):
@@ -152,6 +153,17 @@ class TestSessionExporter(unittest.TestCase):
                 content = f.read()
                 self.assertIn("Session", content)
                 self.assertIn("Kick", content)
+
+
+class TestHealthWatchdog(unittest.TestCase):
+    def test_watchdog_probes(self):
+        watchdog = health_watchdog.HealthWatchdog()
+        status = watchdog.probe_all()
+        self.assertIn("osc_bridge", status)
+        self.assertIn("wasm_host", status)
+        self.assertIn("omni_bridge", status)
+        summary = watchdog.get_summary()
+        self.assertIn("services active", summary)
 
 
 if __name__ == "__main__":

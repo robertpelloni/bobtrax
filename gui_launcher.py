@@ -38,6 +38,11 @@ try:
 except ImportError:
     session_exporter = None
 
+try:
+    import health_watchdog
+except ImportError:
+    health_watchdog = None
+
 # Optional System Tray & Image support
 try:
     import pystray
@@ -168,6 +173,9 @@ class OmniDashboard(tk.Tk):
         # Start live background telemetry listener
         self.start_telemetry_listener()
 
+        # Start autonomous health watchdog
+        self.start_health_watchdog()
+
         # Intercept window close to support minimize-to-tray or clean shutdown
         self.protocol("WM_DELETE_WINDOW", self.on_close_requested)
 
@@ -233,6 +241,10 @@ class OmniDashboard(tk.Tk):
         # Status Badges Frame
         self.status_bar_frame = tk.Frame(header_frame, bg="#1e1e24")
         self.status_bar_frame.pack(side="right")
+
+        self.badge_watchdog = tk.Label(self.status_bar_frame, text="WATCHDOG: ACTIVE", font=("Helvetica", 8, "bold"), bg="#3a3d45", fg="#61dafb", padx=5)
+        self.badge_watchdog.pack(side="left", padx=3)
+        ToolTip(self.badge_watchdog, "Continuous health watchdog probing core daemons with autonomous self-healing.")
 
         self.badge_tray = tk.Label(self.status_bar_frame, text="TRAY: READY", font=("Helvetica", 8, "bold"), bg="#3a3d45", fg="#a6e22e", padx=5)
         self.badge_tray.pack(side="left", padx=3)
@@ -655,6 +667,25 @@ class OmniDashboard(tk.Tk):
         db = 20.0 * math.log10(max(1e-4, peak_ratio))
         self.vu_text_lbl.config(text=f"L: {db:.1f} dB | R: {db:.1f} dB")
         self._draw_vu_meter(peak_ratio, peak_ratio * 0.95)
+
+    def start_health_watchdog(self):
+        """Asynchronous background watchdog evaluating system daemon health."""
+        if not health_watchdog:
+            return
+        def _watch():
+            wd = health_watchdog.HealthWatchdog()
+            while getattr(self, "_running", True):
+                try:
+                    status = wd.probe_all()
+                    alive_count = sum(1 for v in status.values() if v.get("alive"))
+                    total = len(status)
+                    # Update badge in main thread
+                    fg_color = "#a6e22e" if alive_count >= 2 else "#e5c07b"
+                    self.after(0, lambda c=fg_color, s=f"WATCHDOG: {alive_count}/{total}": self.badge_watchdog.config(text=s, fg=c))
+                except Exception:
+                    pass
+                time.sleep(6)
+        threading.Thread(target=_watch, daemon=True).start()
 
     def _run_macro(self, macro_cmd):
         self.muse_prompt.delete(0, tk.END)
