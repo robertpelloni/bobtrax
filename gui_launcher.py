@@ -33,6 +33,11 @@ try:
 except ImportError:
     session_memory = None
 
+try:
+    import session_exporter
+except ImportError:
+    session_exporter = None
+
 # Optional System Tray & Image support
 try:
     import pystray
@@ -399,6 +404,18 @@ class OmniDashboard(tk.Tk):
         self.refresh_mem_btn = ttk.Button(mem_ctrl_bar, text="Refresh Memory", command=self.refresh_session_memory)
         self.refresh_mem_btn.pack(side="right", padx=2)
         ToolTip(self.refresh_mem_btn, "Reload track states and history from session memory.")
+
+        self.undo_btn = ttk.Button(mem_ctrl_bar, text="Undo Last Move", command=self.undo_last_mix_action)
+        self.undo_btn.pack(side="right", padx=2)
+        ToolTip(self.undo_btn, "Revert the parameter adjustments from the previous AI mixing action.")
+
+        self.save_snap_btn = ttk.Button(mem_ctrl_bar, text="Save Snapshot", command=self.save_session_snapshot)
+        self.save_snap_btn.pack(side="right", padx=2)
+        ToolTip(self.save_snap_btn, "Save a named checkpoint of all track faders and settings.")
+
+        self.export_session_btn = ttk.Button(mem_ctrl_bar, text="Export Session...", command=self.export_session_dialog)
+        self.export_session_btn.pack(side="right", padx=2)
+        ToolTip(self.export_session_btn, "Export current session state to Ardour (.ardour) or LMMS (.mmp) project files.")
 
         self.mem_status_lbl = tk.Label(mem_ctrl_bar, text="", font=("Helvetica", 8, "italic"), fg="#555")
         self.mem_status_lbl.pack(side="right", padx=6)
@@ -802,13 +819,61 @@ class OmniDashboard(tk.Tk):
         self.send_osc_direct(f"/track/{track_name}/solo", 1.0 if is_solo else 0.0)
         self.log(f"Track {track_name.upper()} {'SOLOED' if is_solo else 'UNSOLOED'}.")
 
+    def export_session_dialog(self):
+        if not session_memory or not session_exporter:
+            self.log("Session exporter or session memory module missing.")
+            return
+
+        out_file = filedialog.asksaveasfilename(
+            title="Export Session To DAW",
+            defaultextension=".ardour",
+            filetypes=[
+                ("Ardour Session (*.ardour)", "*.ardour"),
+                ("LMMS Project (*.mmp)", "*.mmp"),
+                ("Universal Manifest (*.json)", "*.json"),
+                ("All Files", "*.*")
+            ]
+        )
+        if out_file:
+            try:
+                mem = session_memory.SessionMemory()
+                if out_file.endswith(".mmp"):
+                    session_exporter.export_to_lmms(mem.tracks, out_file)
+                elif out_file.endswith(".json"):
+                    session_exporter.export_manifest(mem.tracks, out_file)
+                else:
+                    session_exporter.export_to_ardour(mem.tracks, out_file)
+                self.log(f"[Session Exporter] Session exported successfully to: {out_file}")
+            except Exception as e:
+                self.log(f"Export session error: {e}")
+
+    def save_session_snapshot(self):
+        if not session_memory:
+            return
+        snap_name = f"snapshot_{int(time.time())}"
+        session_memory.SessionMemory().save_checkpoint(snap_name)
+        self.log(f"[Session Memory] Checkpoint saved: '{snap_name}'")
+        self.refresh_session_memory()
+
+    def undo_last_mix_action(self):
+        if not session_memory:
+            return
+        reverted = session_memory.SessionMemory().undo_last_action()
+        if reverted:
+            for path, val in reverted:
+                self.send_osc_direct(path, val)
+            self.log(f"[Session Memory] Reverted {len(reverted)} parameters from last action.")
+        else:
+            self.log("[Session Memory] No actions available to undo.")
+        self.refresh_session_memory()
+
     def refresh_session_memory(self):
         if not session_memory:
             return
         try:
             mem = session_memory.SessionMemory()
             summary = mem.get_summary()
-            self.mem_status_lbl.config(text=f"{summary['total_tracks']} tracks | {len(summary['recent_actions'])} actions")
+            self.mem_status_lbl.config(text=f"{summary['total_tracks']} tracks | {len(summary['recent_actions'])} actions | {len(mem.checkpoints)} snaps")
             self._build_mixer_strips()
         except Exception as e:
             self.log(f"Session memory refresh error: {e}")

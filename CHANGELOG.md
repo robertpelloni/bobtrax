@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.31] - 2026-11-04
+### Added
+- Cross-DAW Session Exporter engine in `session_exporter.py` generating Ardour XML (`.ardour`), LMMS XML (`.mmp`), and universal JSON arrangement manifests.
+- "Export Session..." dialog in `gui_launcher.py` under the Track Agent-Memory Hub.
+- Automated test cases for session export formats in `tests/test_ecosystem.py`.
+
+## [1.0.30] - 2026-11-04
+### Added
+- Snapshot Checkpoints (`save_checkpoint()`, `restore_checkpoint()`) and Undo action history (`undo_last_action()`) in `session_memory.py`.
+- Natural language undo/revert handling in `ai_assistant/mixing_assistant.py`.
+- Interactive "Save Snapshot" and "Undo Last Move" buttons in `gui_launcher.py`.
+- Automated test case for checkpoints and undo in `tests/test_ecosystem.py`.
+
+## [1.0.29] - 2026-11-04
+### Added
+- Unified Python ecosystem test suite in `tests/test_ecosystem.py` covering SessionMemory, AI mixing heuristic rules, stem separation simulation, and WASM host headers.
+- Integrated automated test discovery (`python3 -m unittest discover tests`) into `build.sh` verification pipeline.
+- Sourced and non-destructive documentation auditing utility in `generate_docs.py`.
+
 ## [1.0.28] - 2026-11-04
 ### Added
 - Interactive Multi-Track Console Channel Strips in `gui_launcher.py`: vertical fader sliders (-60dB to +6dB), mini VU meters, and Mute (M) / Solo (S) buttons for each active session track.

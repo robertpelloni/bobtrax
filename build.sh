@@ -298,6 +298,9 @@ fi
 # 9. Verification Tests
 if [ "$RUN_TESTS" = true ]; then
     print_header "Bobtrax Subsystem Verification"
+    echo ">>> Running Python Ecosystem Unit Tests..."
+    python3 -m unittest discover tests || print_warn "Ecosystem unit tests reported warnings."
+
     if [ -f "/home/jules/self_created_tools/verify_bobtrax.py" ]; then
         python3 /home/jules/self_created_tools/verify_bobtrax.py || print_warn "Some verification checks failed."
     fi

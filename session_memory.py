@@ -64,17 +64,25 @@ class SessionMemory:
     _instance = None
 
     def __new__(cls, *args, **kwargs):
+        # Allow creating isolated instances if custom storage_path is passed
+        storage_path = kwargs.get('storage_path') or (args[0] if args else None)
+        if storage_path and storage_path != MEMORY_FILE:
+            instance = super(SessionMemory, cls).__new__(cls)
+            instance._initialized = False
+            return instance
+
         if not cls._instance:
             cls._instance = super(SessionMemory, cls).__new__(cls)
             cls._instance._initialized = False
         return cls._instance
 
     def __init__(self, storage_path=MEMORY_FILE):
-        if self._initialized:
+        if getattr(self, '_initialized', False) and self.storage_path == storage_path:
             return
         self.storage_path = storage_path
         self.tracks = {}
         self.action_history = []
+        self.checkpoints = {}
         self._load()
         self._initialized = True
 
@@ -154,6 +162,52 @@ class SessionMemory:
         self._save()
         return track.soloed
 
+    def save_checkpoint(self, name):
+        """Creates a named snapshot of current track states and parameters."""
+        snapshot = {k: t.to_dict() for k, t in self.tracks.items()}
+        self.checkpoints[name] = {
+            "timestamp": time.time(),
+            "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "snapshot": snapshot
+        }
+        self._save()
+        return name
+
+    def restore_checkpoint(self, name):
+        """Restores session memory to a previously saved checkpoint snapshot."""
+        if name not in self.checkpoints:
+            return False
+        data = self.checkpoints[name]["snapshot"]
+        self.tracks = {k: TrackState.from_dict(v) for k, v in data.items()}
+        self._save()
+        return True
+
+    def list_checkpoints(self):
+        return list(self.checkpoints.keys())
+
+    def undo_last_action(self):
+        """Reverts parameter changes introduced by the most recent AI mixing action."""
+        if not self.action_history:
+            return []
+        last_action = self.action_history.pop()
+        reverted_moves = []
+        for path, val in last_action.get("moves", []):
+            parts = path.strip("/").split("/")
+            if len(parts) >= 3 and parts[0] == "track":
+                track_name = parts[1]
+                param_key = "/".join(parts[2:])
+                # Revert faders to 0.0 or remove parameter
+                track = self.get_or_create_track(track_name)
+                if "fader" in param_key:
+                    track.fader = 0.0
+                    track.update_parameter("fader", 0.0)
+                    reverted_moves.append((path, 0.0))
+                elif param_key in track.parameters:
+                    del track.parameters[param_key]
+                    reverted_moves.append((path, 0.0))
+        self._save()
+        return reverted_moves
+
     def get_summary(self):
         return {
             "total_tracks": len(self.tracks),
@@ -165,7 +219,8 @@ class SessionMemory:
         try:
             data = {
                 "tracks": {k: t.to_dict() for k, t in self.tracks.items()},
-                "history": self.action_history
+                "history": self.action_history,
+                "checkpoints": self.checkpoints
             }
             with open(self.storage_path, "w") as f:
                 json.dump(data, f, indent=2)
@@ -173,7 +228,7 @@ class SessionMemory:
             logging.warning(f"SessionMemory save warning: {e}")
 
     def _load(self):
-        if not os.path.exists(self.storage_path):
+        if not os.path.exists(self.storage_path) or os.path.getsize(self.storage_path) == 0:
             # Seed with archetypal multi-track session
             for name in ["kick", "snare", "hihat", "bass", "synth", "vocals", "master"]:
                 self.get_or_create_track(name)
@@ -186,6 +241,7 @@ class SessionMemory:
                 for t_name, t_data in data.get("tracks", {}).items():
                     self.tracks[t_name] = TrackState.from_dict(t_data)
                 self.action_history = data.get("history", [])
+                self.checkpoints = data.get("checkpoints", {})
         except Exception as e:
             logging.warning(f"SessionMemory load warning: {e}")
 

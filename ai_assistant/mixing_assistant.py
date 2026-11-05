@@ -239,6 +239,14 @@ def heuristic_dsp_rules(prompt_text, available_tracks):
         new_fader = current_fader + delta
         moves.append((f"/track/{target_name}/fader", new_fader))
 
+    # Natural Language Undo / Revert handling
+    if "undo" in p or "revert" in p:
+        if memory_hub:
+            reverted = memory_hub.undo_last_action()
+            if reverted:
+                logging.info(f"Reverted {len(reverted)} moves from previous action.")
+                return [(p, clamp_parameter(p, v)) for p, v in reverted]
+
     # Fallback default if nothing matched
     if not moves:
         track = available_tracks[0] if available_tracks else "master"
