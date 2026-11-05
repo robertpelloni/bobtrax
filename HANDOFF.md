@@ -1,23 +1,25 @@
 # Handoff Document
 
-## Session Summary (1.0.25)
-- **Omni-Plugin Bridge Standalone Host (`omni_host`):**
-  - Implemented standalone headless host binary in Rust (`omni_plugin_bridge/src/bin/omni_host.rs`).
-  - Spawns an IPC Unix domain socket listener and streams audio buffer frames (512 samples) through simulated external plugin DSP.
-  - Linked to dashboard probe in `gui_launcher.py` measuring latency (< 1.2ms).
+## Session Summary (1.0.26)
+- **Live Visual VU / Peak Level Metering:**
+  - Integrated dual-channel Canvas VU meter in `gui_launcher.py` with green/yellow/red color gradients and numerical dBFS display.
+  - Added live parsing of `[METER]` telemetry packets streamed over UDP from `osc_bridge.py`.
+  - Added `peak_level` state tracking on `TrackState` within `session_memory.py`.
+- **Omni-Plugin Bridge Standalone Host (1.0.25):**
+  - Standalone headless host binary in Rust (`omni_plugin_bridge/src/bin/omni_host.rs`) processing 512-frame audio buffers.
+  - Linked to dashboard latency probe (< 1.2ms).
 - **Real-Time OSC Telemetry Streaming (1.0.24):**
-  - Packet forward-broadcasting from `osc_bridge.py` to UDP port 8005.
-  - Background asynchronous listener in `gui_launcher.py`.
-  - Macro presets in MUSE Command Palette.
-- **Track Agent-Memory Hub & Submodule Builds (1.0.21-1.0.23):**
-  - Persistent session memory in `session_memory.py` and `.bobtrax_session_memory.json`.
-  - Submodule build automation and diagnostic logs (`build.sh`).
-  - Single-page OmniDashboard with system tray integration and server lifecycle controls.
+  - Live UDP telemetry broadcast on port 8005 and background listener in `gui_launcher.py`.
+  - Quick macro presets in MUSE Command Palette.
+- **Submodule Build Automation (1.0.22-1.0.23):**
+  - Automated Ardour `revision.cc` descriptor synthesis in `build.sh`.
+  - Isolated per-submodule compilation logs under `logs/build_<submodule>.log`.
+  - Documented exact platform library and compiler requirements.
 
 ## System Status
 - All unit tests, Cargo builds, and headless GUI verifications pass with 0 errors.
-- Version bumped to `1.0.25`.
+- Version bumped to `1.0.26`.
 
 ## Next Steps for Successor Agents
-- Integrate live audio waveform visualizers or VU meters in `gui_launcher.py` reading from the telemetry UDP stream.
 - Expand `omni_plugin_bridge` with real LV2/VST3 C-FFI plugin bindings.
+- Add multi-track VU meters to the Track Agent-Memory Hub inspector panel.

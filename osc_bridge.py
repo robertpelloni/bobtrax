@@ -96,6 +96,11 @@ def broadcast_handler(address, *args):
         except Exception as e:
             logging.debug(f"Failed to record OSC to session memory: {e}")
 
+    # Forward live metering packets directly to telemetry listener
+    if "meter" in address or "peak" in address:
+        val = args[0] if args else 0.0
+        send_telemetry("METER", f"{address}:{val}")
+
     action = INCOMING_MAP.get(address)
 
     if action:

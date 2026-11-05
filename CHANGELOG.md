@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.26] - 2026-11-04
+### Added
+- Stereo Canvas-based VU / Peak Level Meter in `gui_launcher.py` with dynamic color gradient (green/yellow/red) and dBFS readout.
+- Live metering packet parsing (`[METER] /track/master/meter:<val>`) in the background UDP telemetry listener.
+- Metering event forwarding in `osc_bridge.py` and peak level state tracking in `session_memory.py`.
+
 ## [1.0.25] - 2026-11-04
 ### Added
 - Standalone headless plugin host binary `omni_host` (`omni_plugin_bridge/src/bin/omni_host.rs`) that starts an IPC Unix socket server and processes audio buffer blocks across DAWs.

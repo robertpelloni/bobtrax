@@ -206,9 +206,19 @@ class OmniDashboard(tk.Tk):
         title_lbl.pack(side="left")
         ToolTip(title_lbl, "Bobtrax Command Center: Consolidated native DAWs, AI assistants, and WebAssembly hub.")
 
+        # Read current version dynamically from VERSION.md
+        version_str = "v1.0.26"
+        version_file = os.path.join(REPO_ROOT, "VERSION.md")
+        if os.path.exists(version_file):
+            try:
+                with open(version_file, "r") as vf:
+                    version_str = f"v{vf.read().strip()}"
+            except Exception:
+                pass
+
         version_lbl = tk.Label(
             header_frame,
-            text="v1.0.18",
+            text=version_str,
             font=("Helvetica", 9, "italic"),
             bg="#1e1e24",
             fg="#9da5b4"
@@ -542,16 +552,28 @@ class OmniDashboard(tk.Tk):
             ToolTip(launch_btn, f"Launch native {name} binary as an independent child process.")
 
         # -------------------------------------------------------------
-        # 6. Section: Unified Real-Time System Log & Telemetry
+        # 6. Section: Unified Real-Time System Log & VU Metering
         # -------------------------------------------------------------
         log_frame = tk.LabelFrame(
             self.content_frame,
-            text=" System Telemetry & Console Log ",
+            text=" System Telemetry, VU Metering & Console Log ",
             font=("Helvetica", 10, "bold"),
             padx=10,
             pady=8
         )
         log_frame.pack(fill="both", expand=True, pady=4)
+
+        # Dual Stereo VU Meter Canvas
+        vu_box = tk.Frame(log_frame, bg="#1e1e24", padx=6, pady=4)
+        vu_box.pack(fill="x", pady=(0, 6))
+
+        tk.Label(vu_box, text="Master Output VU (dBFS):", font=("Helvetica", 8, "bold"), bg="#1e1e24", fg="#61dafb").pack(side="left", padx=(0, 6))
+        self.vu_canvas = tk.Canvas(vu_box, width=320, height=18, bg="#111", highlightthickness=1, highlightbackground="#333")
+        self.vu_canvas.pack(side="left", padx=4)
+        ToolTip(self.vu_canvas, "Live stereo master peak meter (green=-60dB to -12dB, yellow=-12dB to -1dB, red=clipping).")
+
+        self.vu_text_lbl = tk.Label(vu_box, text="L: -inf dB | R: -inf dB", font=("Monospace", 8), bg="#1e1e24", fg="#a6e22e")
+        self.vu_text_lbl.pack(side="left", padx=6)
 
         log_ctrl_bar = tk.Frame(log_frame)
         log_ctrl_bar.pack(fill="x", pady=(0, 4))
@@ -569,11 +591,45 @@ class OmniDashboard(tk.Tk):
         self.log_text = tk.Text(log_frame, height=8, bg="#181a1f", fg="#abb2bf", insertbackground="white", font=("Monospace", 8), state="disabled", wrap="word")
         self.log_text.pack(fill="both", expand=True)
 
-        self.log("Omni-Dashboard v1.0.21 initialized. Autopilot mode active. All subsystems ready.")
+        self._draw_vu_meter(0.0, 0.0)
+
+        self.log(f"Omni-Dashboard {version_str} initialized. Autopilot mode active. All subsystems ready.")
         self.refresh_session_memory()
 
     def _on_canvas_configure(self, event):
         self.main_canvas.itemconfig(self.canvas_window, width=event.width)
+
+    def _draw_vu_meter(self, level_l, level_r):
+        """Draws stereo peak bars on the VU meter canvas (0.0 to 1.0 scale)."""
+        self.vu_canvas.delete("all")
+        w = 320
+        h = 18
+        # Background channels (Left top, Right bottom)
+        self.vu_canvas.create_rectangle(0, 1, w, 7, fill="#222", outline="")
+        self.vu_canvas.create_rectangle(0, 10, w, 16, fill="#222", outline="")
+
+        def get_color(ratio):
+            if ratio < 0.75:
+                return "#2e7d32"  # Green
+            elif ratio < 0.90:
+                return "#ffd54f"  # Yellow
+            return "#f44336"      # Red
+
+        len_l = int(max(0.0, min(1.0, level_l)) * w)
+        len_r = int(max(0.0, min(1.0, level_r)) * w)
+
+        if len_l > 0:
+            self.vu_canvas.create_rectangle(0, 1, len_l, 7, fill=get_color(level_l), outline="")
+        if len_r > 0:
+            self.vu_canvas.create_rectangle(0, 10, len_r, 16, fill=get_color(level_r), outline="")
+
+    def _update_meter_telemetry(self, peak_ratio):
+        """Updates live VU meter from incoming bridge telemetry."""
+        # Convert ratio (0.0 to 1.0) to stereo display
+        import math
+        db = 20.0 * math.log10(max(1e-4, peak_ratio))
+        self.vu_text_lbl.config(text=f"L: {db:.1f} dB | R: {db:.1f} dB")
+        self._draw_vu_meter(peak_ratio, peak_ratio * 0.95)
 
     def _run_macro(self, macro_cmd):
         self.muse_prompt.delete(0, tk.END)
@@ -594,8 +650,17 @@ class OmniDashboard(tk.Tk):
                         data, _ = sock.recvfrom(2048)
                         text = data.decode("utf-8", errors="replace")
                         # Clean OSC string if formatted
-                        clean_text = text.replace("/telemetry", "").strip()
-                        self.after(0, lambda m=clean_text: self.log(f"[IPC Telemetry] {m}"))
+                        if "[METER]" in text:
+                            # Parse meter data: e.g. [METER] /track/master/meter:0.75
+                            val_str = text.split(":")[-1].strip()
+                            try:
+                                v = float(val_str)
+                                self.after(0, lambda val=v: self._update_meter_telemetry(val))
+                            except ValueError:
+                                pass
+                        else:
+                            clean_text = text.replace("/telemetry", "").strip()
+                            self.after(0, lambda m=clean_text: self.log(f"[IPC Telemetry] {m}"))
                     except socket.timeout:
                         continue
                     except Exception:
