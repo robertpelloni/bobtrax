@@ -403,10 +403,14 @@ class OmniDashboard(tk.Tk):
         self.mem_status_lbl = tk.Label(mem_ctrl_bar, text="", font=("Helvetica", 8, "italic"), fg="#555")
         self.mem_status_lbl.pack(side="right", padx=6)
 
-        # Track State Display Box
-        self.mem_display = tk.Text(mem_frame, height=4, bg="#21252b", fg="#98c379", font=("Monospace", 8), state="disabled", wrap="word")
-        self.mem_display.pack(fill="x")
-        ToolTip(self.mem_display, "Current parameter snapshot recorded by the Track Agent-Memory hub.")
+        # Interactive Multi-Track Console Channel Strips
+        self.mixer_strips_frame = tk.Frame(mem_frame, bg="#1e1e24", padx=6, pady=6)
+        self.mixer_strips_frame.pack(fill="x")
+        ToolTip(self.mixer_strips_frame, "Interactive channel strips: manual fader level, mute (M), solo (S), and mini VU meters.")
+
+        self.track_widgets = {} # { track_name: { 'fader': Scale, 'mute_btn': Button, 'solo_btn': Button, 'vu': Canvas } }
+
+        self._build_mixer_strips()
 
         # -------------------------------------------------------------
         # 4. Section: Real-Time IPC & Collaboration Hub
@@ -696,22 +700,116 @@ class OmniDashboard(tk.Tk):
         self.log_text.see(tk.END)
         self.log_text.config(state="disabled")
 
+    def _build_mixer_strips(self):
+        for w in self.mixer_strips_frame.winfo_children():
+            w.destroy()
+        self.track_widgets.clear()
+
+        tracks = ["kick", "snare", "hihat", "bass", "synth", "vocals", "master"]
+        if session_memory:
+            try:
+                tracks = session_memory.SessionMemory().get_track_list()
+            except Exception:
+                pass
+
+        for t in tracks:
+            strip = tk.Frame(self.mixer_strips_frame, bg="#282c34", relief="ridge", borderwidth=1, padx=4, pady=4)
+            strip.pack(side="left", fill="y", expand=True, padx=2)
+
+            # Name Label
+            lbl = tk.Label(strip, text=t.upper(), font=("Helvetica", 8, "bold"), bg="#282c34", fg="#61dafb")
+            lbl.pack()
+            ToolTip(lbl, f"Track {t.upper()} channel strip.")
+
+            # Mini VU Peak Canvas
+            vu = tk.Canvas(strip, width=32, height=6, bg="#111", highlightthickness=0)
+            vu.pack(pady=2)
+
+            # Fader Level Slider
+            fader_val = 0.0
+            if session_memory:
+                try:
+                    fader_val = session_memory.SessionMemory().tracks[t].fader
+                except Exception:
+                    pass
+
+            scale = tk.Scale(
+                strip,
+                from_=6.0,
+                to=-60.0,
+                resolution=0.5,
+                orient="vertical",
+                length=85,
+                bg="#282c34",
+                fg="#abb2bf",
+                highlightthickness=0,
+                troughcolor="#1e1e24",
+                font=("Monospace", 7),
+                command=lambda val, name=t: self._on_fader_moved(name, val)
+            )
+            scale.set(fader_val)
+            scale.pack()
+            ToolTip(scale, f"Adjust {t.upper()} fader gain (dB).")
+
+            # Mute & Solo Buttons
+            btn_row = tk.Frame(strip, bg="#282c34")
+            btn_row.pack(fill="x", pady=2)
+
+            mute_btn = tk.Button(
+                btn_row, text="M", width=2, font=("Helvetica", 7, "bold"),
+                bg="#3a3f4b", fg="#fff", command=lambda name=t: self._toggle_track_mute(name)
+            )
+            mute_btn.pack(side="left", padx=1)
+            ToolTip(mute_btn, f"Mute {t.upper()} track.")
+
+            solo_btn = tk.Button(
+                btn_row, text="S", width=2, font=("Helvetica", 7, "bold"),
+                bg="#3a3f4b", fg="#fff", command=lambda name=t: self._toggle_track_solo(name)
+            )
+            solo_btn.pack(side="left", padx=1)
+            ToolTip(solo_btn, f"Solo {t.upper()} track.")
+
+            self.track_widgets[t] = {
+                "fader": scale,
+                "mute_btn": mute_btn,
+                "solo_btn": solo_btn,
+                "vu": vu
+            }
+
+    def _on_fader_moved(self, track_name, value):
+        val = float(value)
+        if session_memory:
+            session_memory.SessionMemory().set_fader(track_name, val)
+        self.send_osc_direct(f"/track/{track_name}/fader", val)
+
+    def _toggle_track_mute(self, track_name):
+        if not session_memory:
+            return
+        is_muted = session_memory.SessionMemory().toggle_mute(track_name)
+        w = self.track_widgets.get(track_name)
+        if w:
+            w["mute_btn"].config(bg="#f44336" if is_muted else "#3a3f4b")
+        self.send_osc_direct(f"/track/{track_name}/mute", 1.0 if is_muted else 0.0)
+        self.log(f"Track {track_name.upper()} {'MUTED' if is_muted else 'UNMUTED'}.")
+
+    def _toggle_track_solo(self, track_name):
+        if not session_memory:
+            return
+        is_solo = session_memory.SessionMemory().toggle_solo(track_name)
+        w = self.track_widgets.get(track_name)
+        if w:
+            w["solo_btn"].config(bg="#ffeb3b" if is_solo else "#3a3f4b", fg="#000" if is_solo else "#fff")
+        self.send_osc_direct(f"/track/{track_name}/solo", 1.0 if is_solo else 0.0)
+        self.log(f"Track {track_name.upper()} {'SOLOED' if is_solo else 'UNSOLOED'}.")
+
     def refresh_session_memory(self):
         if not session_memory:
             return
         try:
             mem = session_memory.SessionMemory()
             summary = mem.get_summary()
-            lines = []
-            for t_name, t_info in summary["tracks"].items():
-                params_str = ", ".join([f"{k}:{v}" for k, v in t_info.get("parameters", {}).items()])
-                lines.append(f"• {t_name.upper()} [{t_info.get('role')}]: fader={t_info.get('fader')}dB | {params_str or 'default'}")
-
             self.mem_status_lbl.config(text=f"{summary['total_tracks']} tracks | {len(summary['recent_actions'])} actions")
-            self.mem_display.config(state="normal")
-            self.mem_display.delete("1.0", tk.END)
-            self.mem_display.insert(tk.END, "\n".join(lines) if lines else "No track state recorded.")
-            self.mem_display.config(state="disabled")
+            self._build_mixer_strips()
         except Exception as e:
             self.log(f"Session memory refresh error: {e}")
 

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.28] - 2026-11-04
+### Added
+- Interactive Multi-Track Console Channel Strips in `gui_launcher.py`: vertical fader sliders (-60dB to +6dB), mini VU meters, and Mute (M) / Solo (S) buttons for each active session track.
+- Real-time OSC fader level and mute/solo state broadcasting into `osc_bridge.py`.
+- Helper methods `set_fader()`, `toggle_mute()`, and `toggle_solo()` in `session_memory.py`.
+
 ## [1.0.27] - 2026-11-04
 ### Added
 - Bidirectional WebSocket gateway connection in WebAssembly Collaboration Portal (`wasm_launcher/index.html`) allowing browser users to command ecosystem transport and monitor incoming telemetry.
