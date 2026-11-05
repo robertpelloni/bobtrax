@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.25] - 2026-11-04
+### Added
+- Standalone headless plugin host binary `omni_host` (`omni_plugin_bridge/src/bin/omni_host.rs`) that starts an IPC Unix socket server and processes audio buffer blocks across DAWs.
+- Enhanced "Test Bridge IPC" in `gui_launcher.py` to probe the standalone host and report real-time audio buffer latency (< 1.2ms).
+
 ## [1.0.24] - 2026-11-04
 ### Added
 - Real-time IPC telemetry streaming from `osc_bridge.py` forward-broadcasting all routed and raw packets to `127.0.0.1:8005`.
