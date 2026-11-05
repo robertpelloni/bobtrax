@@ -1,37 +1,242 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Bobtrax WebAssembly Launcher</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Bobtrax WebAssembly Collaboration Portal</title>
     <style>
-        body { font-family: sans-serif; text-align: center; margin-top: 50px; background-color: #222; color: #eee; }
-        h1 { color: #61dafb; }
-        .button {
-            background-color: #4CAF50; border: none; color: white; padding: 15px 32px;
-            text-align: center; text-decoration: none; display: inline-block;
-            font-size: 16px; margin: 4px 2px; cursor: pointer; border-radius: 8px;
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #181a1f;
+            color: #abb2bf;
+            margin: 0;
+            padding: 30px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
         }
-        .container { max-width: 600px; margin: 0 auto; background: #333; padding: 20px; border-radius: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.5); }
+        .container {
+            max-width: 780px;
+            width: 100%;
+            background: #21252b;
+            padding: 24px;
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+            border: 1px solid #333842;
+        }
+        h1 { color: #61dafb; margin-top: 0; font-size: 24px; text-align: center; }
+        h2 { color: #e5c07b; font-size: 16px; border-bottom: 1px solid #333842; padding-bottom: 6px; }
+        p { font-size: 14px; line-height: 1.5; color: #9da5b4; }
+        .btn-group { display: flex; gap: 10px; margin: 15px 0; flex-wrap: wrap; }
+        .btn {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 18px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 13px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .btn:hover { background-color: #45a049; }
+        .btn-sec { background-color: #3a3f4b; }
+        .btn-sec:hover { background-color: #4b5263; }
+        .btn-danger { background-color: #e06c75; }
+        .btn-danger:hover { background-color: #be5046; }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+            background: #282c34;
+            color: #98c379;
+            margin-bottom: 12px;
+        }
+        canvas {
+            width: 100%;
+            height: 120px;
+            background: #111317;
+            border-radius: 6px;
+            border: 1px solid #333842;
+            margin-top: 10px;
+        }
+        #console-log {
+            background: #111317;
+            padding: 10px;
+            border-radius: 6px;
+            font-family: monospace;
+            font-size: 12px;
+            height: 100px;
+            overflow-y: auto;
+            color: #98c379;
+            border: 1px solid #333842;
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>Bobtrax WebAssembly Portal</h1>
-        <p>This is the browser-based collaboration interface for Bobtrax.</p>
-
-        <h2>Available WASM Engines</h2>
-        <p>Select a core audio engine to run in the browser:</p>
+        <h1>Bobtrax WebAssembly Collaboration Portal</h1>
+        <p style="text-align: center;">Browser-Based Real-Time Audio Engine Host & WebSocket IPC Gateway</p>
 
         <div>
-            <!-- These would link to the actual generated .html/.js files from Emscripten -->
-            <a href="../bobui/build_wasm/index.html" class="button">Launch BobUI (WASM)</a>
-            <a href="../lmms/build_wasm/index.html" class="button">Launch LMMS Core (WASM)</a>
+            <span id="ws-status" class="status-badge">WebSocket Gateway: Connecting...</span>
+            <span id="audio-status" class="status-badge" style="color: #61dafb;">WebAudio: Ready</span>
         </div>
 
-        <p style="margin-top: 30px; font-size: 0.9em; color: #aaa;">
-            Note: Emscripten builds are required before launching. Run <code>./build_wasm.sh</code> in the project root.
-        </p>
+        <h2>Ecosystem Transport Control (Real-Time WebSocket -> OSC)</h2>
+        <div class="btn-group">
+            <button class="btn" onclick="sendWsAction('play')">▶ Play DAWs</button>
+            <button class="btn btn-danger" onclick="sendWsAction('stop')">⏹ Stop DAWs</button>
+            <button class="btn btn-sec" onclick="triggerTestTone()">🔊 Test WebAudio Synth</button>
+        </div>
+
+        <h2>Live AudioWorklet / Oscillator Waveform Visualizer</h2>
+        <canvas id="scope"></canvas>
+
+        <h2>Available Compiled WASM Audio Cores</h2>
+        <p>Launch compiled C++ audio cores in local isolated threads:</p>
+        <div class="btn-group">
+            <a href="../bobui/build_wasm/index.html" class="btn btn-sec">Launch BobUI Core (WASM)</a>
+            <a href="../lmms/build_wasm/index.html" class="btn btn-sec">Launch LMMS Engine (WASM)</a>
+        </div>
+
+        <h2>Real-Time Telemetry Feed</h2>
+        <div id="console-log">Connecting to WebSocket on ws://127.0.0.1:8765...</div>
     </div>
+
+    <script>
+        // Logging
+        const logBox = document.getElementById("console-log");
+        function log(msg) {
+            const time = new Date().toLocaleTimeString();
+            logBox.innerHTML += `[${time}] ${msg}<br>`;
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+
+        // WebSocket Gateway Connection
+        let ws = null;
+        const wsBadge = document.getElementById("ws-status");
+
+        function connectWS() {
+            try {
+                ws = new WebSocket("ws://127.0.0.1:8765");
+                ws.onopen = () => {
+                    wsBadge.textContent = "WebSocket Gateway: Connected";
+                    wsBadge.style.color = "#98c379";
+                    log("Connected to Bobtrax WebSocket Gateway.");
+                };
+                ws.onmessage = (e) => {
+                    log(`Incoming: ${e.data}`);
+                };
+                ws.onerror = () => {
+                    wsBadge.textContent = "WebSocket Gateway: Offline";
+                    wsBadge.style.color = "#e06c75";
+                };
+                ws.onclose = () => {
+                    wsBadge.textContent = "WebSocket Gateway: Disconnected";
+                    wsBadge.style.color = "#e5c07b";
+                    setTimeout(connectWS, 4000);
+                };
+            } catch (err) {
+                wsBadge.textContent = "WebSocket Gateway: Offline";
+            }
+        }
+        connectWS();
+
+        function sendWsAction(action) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const payload = JSON.stringify({ action: action });
+                ws.send(payload);
+                log(`Sent action '${action}' to Bobtrax Ecosystem.`);
+            } else {
+                log(`Cannot send '${action}' - WebSocket Gateway is not connected.`);
+            }
+        }
+
+        // WebAudio & Canvas Oscilloscope
+        let audioCtx = null;
+        let analyser = null;
+        let isScopeRunning = false;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 512;
+            }
+        }
+
+        function triggerTestTone() {
+            initAudio();
+            if (audioCtx.state === "suspended") {
+                audioCtx.resume();
+            }
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.type = "sawtooth";
+            osc.frequency.setValueAtTime(220, audioCtx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(880, audioCtx.currentTime + 0.3);
+
+            gain.gain.setValueAtTime(0.2, audioCtx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+
+            osc.connect(gain);
+            gain.connect(analyser);
+            analyser.connect(audioCtx.destination);
+
+            osc.start();
+            osc.stop(audioCtx.currentTime + 0.45);
+            log("Triggered WebAudio test synth (220Hz -> 880Hz).");
+
+            if (!isScopeRunning) {
+                drawScope();
+            }
+        }
+
+        const canvas = document.getElementById("scope");
+        const ctx = canvas.getContext("2d");
+
+        function drawScope() {
+            isScopeRunning = true;
+            requestAnimationFrame(drawScope);
+            if (!analyser) return;
+
+            const bufferLength = analyser.frequencyBinCount;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
+
+            ctx.fillStyle = "#111317";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = "#61dafb";
+            ctx.beginPath();
+
+            const sliceWidth = canvas.width * 1.0 / bufferLength;
+            let x = 0;
+
+            for (let i = 0; i < bufferLength; i++) {
+                const v = dataArray[i] / 128.0;
+                const y = v * canvas.height / 2;
+                if (i === 0) {
+                    ctx.moveTo(x, y);
+                } else {
+                    ctx.lineTo(x, y);
+                }
+                x += sliceWidth;
+            }
+            ctx.lineTo(canvas.width, canvas.height / 2);
+            ctx.stroke();
+        }
+
+        // Initialize scope
+        initAudio();
+        drawScope();
+    </script>
 </body>
 </html>

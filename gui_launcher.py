@@ -489,6 +489,10 @@ class OmniDashboard(tk.Tk):
         open_browser_btn.pack(side="right", padx=4)
         ToolTip(open_browser_btn, "Open http://localhost:8080 in default web browser.")
 
+        test_ws_btn = ttk.Button(all_servers_bar, text="Probe Web Gateway", command=self.test_web_gateway)
+        test_ws_btn.pack(side="right", padx=4)
+        ToolTip(test_ws_btn, "Test WebSocket connection and dispatch transport ping to DAWs.")
+
         # -------------------------------------------------------------
         # 5. Section: Omni-Plugin Bridge & Native Workstations
         # -------------------------------------------------------------
@@ -1093,6 +1097,25 @@ class OmniDashboard(tk.Tk):
             webbrowser.open("http://localhost:8080")
         except Exception as e:
             self.log(f"Failed to launch browser: {e}")
+
+    def test_web_gateway(self):
+        self.log("Probing WebSocket-to-OSC Gateway (ws://127.0.0.1:8765)...")
+        if not self.processes["osc_web"]:
+            self.start_osc_web()
+        def _probe():
+            try:
+                import asyncio
+                import websockets
+                import json
+                async def _ping():
+                    async with websockets.connect("ws://127.0.0.1:8765") as ws:
+                        await ws.send(json.dumps({"action": "play"}))
+                        resp = await asyncio.wait_for(ws.recv(), timeout=3.0)
+                        self.after(0, lambda: self.log(f"Web Gateway Probe: Response received -> {resp}"))
+                asyncio.run(_ping())
+            except Exception as e:
+                self.after(0, lambda: self.log(f"Web Gateway Probe note: {e}"))
+        threading.Thread(target=_probe, daemon=True).start()
 
     # -------------------------------------------------------------
     # Omni-Plugin Bridge & DAW Workstation Launchers

@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.27] - 2026-11-04
+### Added
+- Bidirectional WebSocket gateway connection in WebAssembly Collaboration Portal (`wasm_launcher/index.html`) allowing browser users to command ecosystem transport and monitor incoming telemetry.
+- Built-in WebAudio test synthesizer with real-time Canvas oscilloscope visualization.
+- "Probe Web Gateway" diagnostic tool in `gui_launcher.py`.
+
 ## [1.0.26] - 2026-11-04
 ### Added
 - Stereo Canvas-based VU / Peak Level Meter in `gui_launcher.py` with dynamic color gradient (green/yellow/red) and dBFS readout.
