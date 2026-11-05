@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.30] - 2026-11-04
+### Added
+- Snapshot Checkpoints (`save_checkpoint()`, `restore_checkpoint()`) and Undo action history (`undo_last_action()`) in `session_memory.py`.
+- Natural language undo/revert handling in `ai_assistant/mixing_assistant.py`.
+- Interactive "Save Snapshot" and "Undo Last Move" buttons in `gui_launcher.py`.
+- Automated test case for checkpoints and undo in `tests/test_ecosystem.py`.
+
 ## [1.0.29] - 2026-11-04
 ### Added
 - Unified Python ecosystem test suite in `tests/test_ecosystem.py` covering SessionMemory, AI mixing heuristic rules, stem separation simulation, and WASM host headers.

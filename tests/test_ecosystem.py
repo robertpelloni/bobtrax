@@ -65,6 +65,27 @@ class TestSessionMemory(unittest.TestCase):
             self.assertEqual(data["tracks"]["bass"]["fader"], -6.0)
             self.assertEqual(len(data["history"]), 1)
 
+    def test_checkpoint_and_undo(self):
+        self.mem.set_fader("kick", 0.0)
+        self.mem.save_checkpoint("initial_mix")
+        self.assertIn("initial_mix", self.mem.list_checkpoints())
+
+        # Modify kick fader
+        self.mem.set_fader("kick", -10.0)
+        self.assertEqual(self.mem.tracks["kick"].fader, -10.0)
+
+        # Restore checkpoint
+        success = self.mem.restore_checkpoint("initial_mix")
+        self.assertTrue(success)
+        self.assertEqual(self.mem.tracks["kick"].fader, 0.0)
+
+        # Test Undo last action
+        self.mem.record_action("agent", "boost snare", [("/track/snare/fader", 4.0)])
+        self.assertEqual(self.mem.tracks["snare"].fader, 4.0)
+        reverted = self.mem.undo_last_action()
+        self.assertTrue(any("snare" in r[0] for r in reverted))
+        self.assertEqual(self.mem.tracks["snare"].fader, 0.0)
+
 
 class TestAiMixingAssistant(unittest.TestCase):
     def test_acoustic_dsp_rules(self):
