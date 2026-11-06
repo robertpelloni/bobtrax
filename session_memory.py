@@ -19,6 +19,30 @@ import time
 MEMORY_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".bobtrax_session_memory.json"))
 DEFAULT_OMNI_SOCKET = "/tmp/bobtrax_omni_bridge.sock"
 
+PLUGIN_PRESETS = {
+    "Warm Tube": {
+        "omni_saturation/drive": 0.45,
+        "omni_saturation/warmth": 0.70,
+        "omni_filter/cutoff": 14000.0
+    },
+    "Opto Comp": {
+        "omni_compressor/threshold": -18.0,
+        "omni_compressor/ratio": 3.5,
+        "omni_compressor/attack": 25.0,
+        "omni_compressor/release": 150.0
+    },
+    "Space Reverb": {
+        "omni_reverb/decay": 3.2,
+        "omni_reverb/damping": 0.5,
+        "omni_reverb/mix": 0.28
+    },
+    "Clean Limiter": {
+        "omni_limiter/ceiling": -0.2,
+        "omni_limiter/threshold": -2.0,
+        "omni_limiter/release": 50.0
+    }
+}
+
 
 class TrackState:
     def __init__(self, name, role="generic"):
@@ -225,6 +249,18 @@ class SessionMemory:
             self._send_omni_ipc(full_key, float(value))
 
         return self.omni_synced_params[full_key]
+
+    def apply_plugin_preset(self, track_id, preset_name):
+        """Applies a multi-parameter plugin preset block to a track and synchronizes it."""
+        params = PLUGIN_PRESETS.get(preset_name, PLUGIN_PRESETS.get("Warm Tube", {}))
+        applied = {}
+        for param_path, val in params.items():
+            parts = param_path.split("/")
+            plugin_id = parts[0]
+            param_name = "/".join(parts[1:])
+            self.sync_plugin_parameter(track_id, plugin_id, param_name, val)
+            applied[param_path] = val
+        return applied
 
     def _send_omni_ipc(self, key, value):
         """Dispatches parameter change to the standalone Rust Omni-Plugin host if available."""

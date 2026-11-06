@@ -196,6 +196,14 @@ class TestOmniPluginBridgeSync(unittest.TestCase):
             self.assertEqual(drive, 0.45)
             self.assertEqual(mem.omni_synced_params["bass:omni_filter:drive"], 0.45)
 
+    def test_plugin_preset_application(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            applied = mem.apply_plugin_preset("synth", "Space Reverb")
+            self.assertIn("omni_reverb/decay", applied)
+            self.assertEqual(applied["omni_reverb/decay"], 3.2)
+            self.assertEqual(mem.tracks["synth"].parameters["plugins/omni_reverb/decay"], 3.2)
+
 
 class TestBobUIBridgeSync(unittest.TestCase):
     def test_bobui_bridge_parameter_sync(self):

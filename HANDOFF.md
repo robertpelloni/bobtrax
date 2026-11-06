@@ -1,5 +1,11 @@
 # Handoff Document
 
+## Session Summary (1.0.38)
+- **Omni-Plugin Presets & Inter-DAW Integration:**
+  - Implemented multi-parameter plugin presets ("Warm Tube", "Opto Comp", "Space Reverb", "Clean Limiter") in `session_memory.py`.
+  - Added preset browser and live dispatcher to OmniDashboard (`gui_launcher.py`).
+  - Added unit test validation in `tests/test_ecosystem.py` (14/14 tests passing).
+
 ## Session Summary (1.0.37)
 - **Real-Time Audio Waveform & Envelope Telemetry:**
   - Implemented multi-point scrolling waveform sparkline inside OmniDashboard (`gui_launcher.py`) alongside stereo peak metering.

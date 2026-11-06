@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.38] - 2026-03-30
+### Added
+- Multi-parameter Omni-Plugin preset manager (`PLUGIN_PRESETS` and `apply_plugin_preset`) in `session_memory.py`.
+- Interactive preset browser dropdown and "Apply Preset" dispatcher in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_plugin_preset_application` in `tests/test_ecosystem.py` (14/14 tests passing).
+
 ## [1.0.37] - 2026-03-30
 ### Added
 - Real-Time Audio Envelope & Waveform History Sparkline visualization inside `gui_launcher.py` Canvas VU meter.

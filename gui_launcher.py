@@ -464,6 +464,21 @@ class OmniDashboard(tk.Tk):
         self.plugin_track_combo.set("bass")
         self.plugin_track_combo.pack(side="left", padx=4)
 
+        tk.Label(plugin_sync_bar, text="Preset:", font=("Helvetica", 8), bg="#282c34", fg="#abb2bf").pack(side="left")
+        self.plugin_preset_combo = ttk.Combobox(
+            plugin_sync_bar,
+            values=["Warm Tube", "Opto Comp", "Space Reverb", "Clean Limiter"],
+            state="readonly",
+            width=12
+        )
+        self.plugin_preset_combo.set("Warm Tube")
+        self.plugin_preset_combo.pack(side="left", padx=4)
+        ToolTip(self.plugin_preset_combo, "Quick multi-parameter preset macro for cross-DAW plugins.")
+
+        apply_preset_btn = ttk.Button(plugin_sync_bar, text="Apply Preset", command=self._apply_plugin_preset)
+        apply_preset_btn.pack(side="left", padx=2)
+        ToolTip(apply_preset_btn, "Broadcast preset parameter block to Omni-Plugin Bridge.")
+
         tk.Label(plugin_sync_bar, text="Cutoff:", font=("Helvetica", 8), bg="#282c34", fg="#abb2bf").pack(side="left")
         self.cutoff_scale = tk.Scale(
             plugin_sync_bar,
@@ -954,6 +969,19 @@ class OmniDashboard(tk.Tk):
             session_memory.SessionMemory().sync_plugin_parameter(track, "omni_filter", "drive", v)
         self.plugin_sync_status.config(text=f"Sync: {track}/drive={v:.2f}")
         self.send_osc_direct(f"/track/{track}/plugin/omni_filter/drive", v)
+
+    def _apply_plugin_preset(self):
+        track = self.plugin_track_combo.get() or "bass"
+        preset = self.plugin_preset_combo.get() or "Warm Tube"
+        if session_memory:
+            mem = session_memory.SessionMemory()
+            if hasattr(mem, "apply_plugin_preset"):
+                applied = mem.apply_plugin_preset(track, preset)
+                for key, val in applied.items():
+                    self.send_osc_direct(f"/track/{track}/plugin/{key}", val)
+                self.plugin_sync_status.config(text=f"Preset: {preset} on {track}")
+                self.log(f"Omni-Plugin preset '{preset}' applied to track '{track}'.")
+                self.refresh_session_memory()
 
     def import_session_dialog(self):
         if not session_memory or not session_importer:
