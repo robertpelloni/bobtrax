@@ -24,6 +24,8 @@ from ai_assistant import mixing_assistant
 import stem_separator
 import wasm_host
 import session_exporter
+import session_importer
+import health_watchdog
 
 
 class TestSessionMemory(unittest.TestCase):
@@ -129,17 +131,18 @@ class TestWasmHost(unittest.TestCase):
         self.assertTrue(hasattr(wasm_host.WasmHandler, "end_headers"))
 
 
-class TestSessionExporter(unittest.TestCase):
-    def test_session_export_ardour_and_lmms(self):
+class TestSessionExporterAndImporter(unittest.TestCase):
+    def test_session_export_and_import_cycle(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             tracks = {
-                "kick": {"fader": 0.0, "muted": False, "soloed": False},
-                "bass": {"fader": -3.0, "muted": False, "soloed": False}
+                "kick": {"fader": 2.5, "muted": True, "soloed": False},
+                "bass": {"fader": -4.0, "muted": False, "soloed": True}
             }
             ardour_file = os.path.join(tmpdir, "test.ardour")
             lmms_file = os.path.join(tmpdir, "test.mmp")
             manifest_file = os.path.join(tmpdir, "manifest.json")
 
+            # Export
             session_exporter.export_to_ardour(tracks, ardour_file)
             session_exporter.export_to_lmms(tracks, lmms_file)
             session_exporter.export_manifest(tracks, manifest_file)
@@ -148,10 +151,48 @@ class TestSessionExporter(unittest.TestCase):
             self.assertTrue(os.path.exists(lmms_file))
             self.assertTrue(os.path.exists(manifest_file))
 
-            with open(ardour_file) as f:
-                content = f.read()
-                self.assertIn("Session", content)
-                self.assertIn("Kick", content)
+            # Import back
+            imported_ardour = session_importer.import_from_ardour(ardour_file)
+            imported_lmms = session_importer.import_from_lmms(lmms_file)
+            imported_manifest = session_importer.import_from_manifest(manifest_file)
+
+            self.assertIn("kick", imported_ardour)
+            self.assertEqual(imported_ardour["kick"]["fader"], 2.5)
+            self.assertTrue(imported_ardour["kick"]["muted"])
+
+            self.assertIn("bass", imported_lmms)
+            self.assertTrue(imported_lmms["bass"]["soloed"])
+
+            self.assertIn("kick", imported_manifest)
+            self.assertEqual(imported_manifest["kick"]["fader"], 2.5)
+
+
+class TestHealthWatchdog(unittest.TestCase):
+    def test_watchdog_probes(self):
+        watchdog = health_watchdog.HealthWatchdog()
+        status = watchdog.probe_all()
+        self.assertIn("osc_bridge", status)
+        self.assertIn("wasm_host", status)
+        self.assertIn("omni_bridge", status)
+        summary = watchdog.get_summary()
+        self.assertIn("services active", summary)
+
+
+class TestOmniPluginBridgeSync(unittest.TestCase):
+    def test_plugin_parameter_sync(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            # Sync cutoff
+            val = mem.sync_plugin_parameter("bass", "omni_filter", "cutoff", 850.0, send_ipc=False)
+            self.assertEqual(val, 850.0)
+            self.assertIn("bass:omni_filter:cutoff", mem.omni_synced_params)
+            self.assertEqual(mem.omni_synced_params["bass:omni_filter:cutoff"], 850.0)
+            self.assertEqual(mem.tracks["bass"].parameters["plugins/omni_filter/cutoff"], 850.0)
+
+            # Sync drive
+            drive = mem.sync_plugin_parameter("bass", "omni_filter", "drive", 0.45, send_ipc=False)
+            self.assertEqual(drive, 0.45)
+            self.assertEqual(mem.omni_synced_params["bass:omni_filter:drive"], 0.45)
 
 
 if __name__ == "__main__":

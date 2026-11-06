@@ -12,9 +12,12 @@ Provides persistent and in-memory tracking of active multi-DAW session state:
 import json
 import logging
 import os
+import socket
+import threading
 import time
 
 MEMORY_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".bobtrax_session_memory.json"))
+DEFAULT_OMNI_SOCKET = "/tmp/bobtrax_omni_bridge.sock"
 
 
 class TrackState:
@@ -83,6 +86,8 @@ class SessionMemory:
         self.tracks = {}
         self.action_history = []
         self.checkpoints = {}
+        self.omni_socket_path = DEFAULT_OMNI_SOCKET
+        self.omni_synced_params = {}
         self._load()
         self._initialized = True
 
@@ -208,11 +213,41 @@ class SessionMemory:
         self._save()
         return reverted_moves
 
+    def sync_plugin_parameter(self, track_id, plugin_id, param_name, value, send_ipc=True):
+        """Synchronizes an Omni-Plugin Bridge parameter across DAWs and updates session memory."""
+        full_key = f"{track_id}:{plugin_id}:{param_name}"
+        self.omni_synced_params[full_key] = float(value)
+        track = self.get_or_create_track(track_id)
+        track.update_parameter(f"plugins/{plugin_id}/{param_name}", float(value))
+        self._save()
+
+        if send_ipc:
+            self._send_omni_ipc(full_key, float(value))
+
+        return self.omni_synced_params[full_key]
+
+    def _send_omni_ipc(self, key, value):
+        """Dispatches parameter change to the standalone Rust Omni-Plugin host if available."""
+        if not os.path.exists(self.omni_socket_path):
+            return False
+        try:
+            client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            client.settimeout(0.5)
+            client.connect(self.omni_socket_path)
+            cmd = f"SET {key} {value}\n"
+            client.sendall(cmd.encode("utf-8"))
+            client.close()
+            return True
+        except Exception as e:
+            logging.debug(f"Omni-Plugin IPC send error: {e}")
+            return False
+
     def get_summary(self):
         return {
             "total_tracks": len(self.tracks),
             "tracks": {k: t.to_dict() for k, t in self.tracks.items()},
-            "recent_actions": self.action_history[-5:]
+            "recent_actions": self.action_history[-5:],
+            "omni_synced_params": self.omni_synced_params
         }
 
     def _save(self):

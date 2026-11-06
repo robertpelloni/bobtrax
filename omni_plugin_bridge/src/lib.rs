@@ -3,15 +3,13 @@
 /// This Rust library acts as a universal shim for VST and LV2 plugins.
 /// Instead of a DAW (like LMMS or Ardour) loading a heavy external plugin directly,
 /// it loads this bridge. The bridge then spawns a standalone headless process
-/// hosting the real plugin and streams audio buffers via Shared Memory / IPC.
-///
-/// This architecture achieves true "Cross-DAW Synchronization" because both
-/// LMMS and Ardour can connect to the *same* spawned plugin instance simultaneously.
+/// hosting the real plugin and streams audio buffers and parameter updates via IPC.
 
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 use std::thread;
 use std::os::unix::net::UnixListener;
-use std::io::{Read, Write};
+use std::io::{BufRead, BufReader, Write};
 
 // Mock IPC Buffer representing shared audio arrays
 pub struct SharedAudioBuffer {
@@ -19,10 +17,19 @@ pub struct SharedAudioBuffer {
     pub right_channel: Vec<f32>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub struct PluginParameterSync {
+    pub track_id: String,
+    pub plugin_id: String,
+    pub param_name: String,
+    pub value: f32,
+}
+
 pub struct OmniBridge {
-    is_connected: bool,
-    active_plugin_path: String,
-    shared_memory: Arc<Mutex<SharedAudioBuffer>>,
+    pub is_connected: bool,
+    pub active_plugin_path: String,
+    pub shared_memory: Arc<Mutex<SharedAudioBuffer>>,
+    pub parameters: Arc<Mutex<HashMap<String, f32>>>,
 }
 
 impl OmniBridge {
@@ -34,6 +41,7 @@ impl OmniBridge {
                 left_channel: vec![0.0; 512],
                 right_channel: vec![0.0; 512],
             })),
+            parameters: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -41,29 +49,72 @@ impl OmniBridge {
     pub fn connect_to_host(&mut self, plugin_path: &str) -> Result<(), String> {
         self.active_plugin_path = plugin_path.to_string();
         self.is_connected = true;
-        // In a real implementation, bind to a Unix Domain Socket or mapped memory
         println!("OmniBridge: Connected to headless host for plugin: {}", plugin_path);
         Ok(())
     }
 
+    /// Set a plugin parameter directly into the synchronized parameter map.
+    pub fn set_parameter(&self, key: &str, value: f32) {
+        let mut map = self.parameters.lock().unwrap();
+        map.insert(key.to_string(), value);
+    }
+
+    /// Retrieve a plugin parameter.
+    pub fn get_parameter(&self, key: &str) -> Option<f32> {
+        let map = self.parameters.lock().unwrap();
+        map.get(key).copied()
+    }
+
     /// Spawns a background thread listening on a Unix socket for DAW control messages.
+    /// Handles commands formatted as newline-delimited JSON or plain key-value lines:
+    /// e.g. `SET param_name 0.75` or `{"action": "set", "param": "cutoff", "value": 0.8}`
     pub fn start_ipc_server(&self, socket_path: &str) -> Result<(), std::io::Error> {
-        // Remove existing socket file if it exists to avoid Address in Use errors
         let _ = std::fs::remove_file(socket_path);
 
         let listener = UnixListener::bind(socket_path)?;
         println!("OmniBridge: IPC Server listening on {}", socket_path);
 
+        let params_ref = Arc::clone(&self.parameters);
+
         thread::spawn(move || {
             for stream in listener.incoming() {
                 match stream {
                     Ok(mut stream) => {
-                        let mut buffer = String::new();
-                        if let Ok(_) = stream.read_to_string(&mut buffer) {
-                            println!("Received DAW control message: {}", buffer);
-                            // Simulating JSON parsing and parameter adjustment
-                            let response = r#"{"status": "success"}"#;
-                            let _ = stream.write_all(response.as_bytes());
+                        let reader = BufReader::new(stream.try_clone().unwrap());
+                        for line in reader.lines() {
+                            if let Ok(cmd) = line {
+                                let trimmed = cmd.trim();
+                                if trimmed.is_empty() {
+                                    continue;
+                                }
+
+                                if trimmed.starts_with("SET ") {
+                                    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                    if parts.len() >= 3 {
+                                        let param_name = parts[1];
+                                        if let Ok(val) = parts[2].parse::<f32>() {
+                                            let mut map = params_ref.lock().unwrap();
+                                            map.insert(param_name.to_string(), val);
+                                            let resp = format!("{{\"status\": \"ok\", \"param\": \"{}\", \"value\": {}}}\n", param_name, val);
+                                            let _ = stream.write_all(resp.as_bytes());
+                                            continue;
+                                        }
+                                    }
+                                } else if trimmed == "GET_ALL" {
+                                    let map = params_ref.lock().unwrap();
+                                    let mut entries = Vec::new();
+                                    for (k, v) in map.iter() {
+                                        entries.push(format!("\"{}\": {}", k, v));
+                                    }
+                                    let resp = format!("{{\"status\": \"ok\", \"params\": {{{}}}}}\n", entries.join(", "));
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
+                                }
+
+                                // Default fallback acknowledge
+                                let resp = "{\"status\": \"received\"}\n";
+                                let _ = stream.write_all(resp.as_bytes());
+                            }
                         }
                     }
                     Err(e) => println!("IPC connection failed: {}", e),
@@ -82,10 +133,9 @@ impl OmniBridge {
 
         let mut buffer = self.shared_memory.lock().unwrap();
 
-        // Simulating sending to out-of-process plugin and receiving back
         for i in 0..input_left.len() {
             if i < buffer.left_channel.len() {
-                buffer.left_channel[i] = input_left[i] * 0.8; // Simulated DSP (e.g., gain reduction)
+                buffer.left_channel[i] = input_left[i] * 0.8;
                 buffer.right_channel[i] = input_right[i] * 0.8;
             }
         }
@@ -104,5 +154,13 @@ mod tests {
         let res = bridge.connect_to_host("/usr/lib/vst/Vital.so");
         assert!(res.is_ok());
         assert_eq!(bridge.is_connected, true);
+    }
+
+    #[test]
+    fn test_parameter_sync() {
+        let bridge = OmniBridge::new();
+        bridge.set_parameter("cutoff", 0.65);
+        assert_eq!(bridge.get_parameter("cutoff"), Some(0.65));
+        assert_eq!(bridge.get_parameter("resonance"), None);
     }
 }

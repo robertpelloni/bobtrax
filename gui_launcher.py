@@ -38,6 +38,16 @@ try:
 except ImportError:
     session_exporter = None
 
+try:
+    import session_importer
+except ImportError:
+    session_importer = None
+
+try:
+    import health_watchdog
+except ImportError:
+    health_watchdog = None
+
 # Optional System Tray & Image support
 try:
     import pystray
@@ -168,6 +178,9 @@ class OmniDashboard(tk.Tk):
         # Start live background telemetry listener
         self.start_telemetry_listener()
 
+        # Start autonomous health watchdog
+        self.start_health_watchdog()
+
         # Intercept window close to support minimize-to-tray or clean shutdown
         self.protocol("WM_DELETE_WINDOW", self.on_close_requested)
 
@@ -233,6 +246,10 @@ class OmniDashboard(tk.Tk):
         # Status Badges Frame
         self.status_bar_frame = tk.Frame(header_frame, bg="#1e1e24")
         self.status_bar_frame.pack(side="right")
+
+        self.badge_watchdog = tk.Label(self.status_bar_frame, text="WATCHDOG: ACTIVE", font=("Helvetica", 8, "bold"), bg="#3a3d45", fg="#61dafb", padx=5)
+        self.badge_watchdog.pack(side="left", padx=3)
+        ToolTip(self.badge_watchdog, "Continuous health watchdog probing core daemons with autonomous self-healing.")
 
         self.badge_tray = tk.Label(self.status_bar_frame, text="TRAY: READY", font=("Helvetica", 8, "bold"), bg="#3a3d45", fg="#a6e22e", padx=5)
         self.badge_tray.pack(side="left", padx=3)
@@ -413,6 +430,10 @@ class OmniDashboard(tk.Tk):
         self.save_snap_btn.pack(side="right", padx=2)
         ToolTip(self.save_snap_btn, "Save a named checkpoint of all track faders and settings.")
 
+        self.import_session_btn = ttk.Button(mem_ctrl_bar, text="Import Session...", command=self.import_session_dialog)
+        self.import_session_btn.pack(side="right", padx=2)
+        ToolTip(self.import_session_btn, "Import track faders and settings from an Ardour (.ardour) or LMMS (.mmp) file.")
+
         self.export_session_btn = ttk.Button(mem_ctrl_bar, text="Export Session...", command=self.export_session_dialog)
         self.export_session_btn.pack(side="right", padx=2)
         ToolTip(self.export_session_btn, "Export current session state to Ardour (.ardour) or LMMS (.mmp) project files.")
@@ -424,6 +445,68 @@ class OmniDashboard(tk.Tk):
         self.mixer_strips_frame = tk.Frame(mem_frame, bg="#1e1e24", padx=6, pady=6)
         self.mixer_strips_frame.pack(fill="x")
         ToolTip(self.mixer_strips_frame, "Interactive channel strips: manual fader level, mute (M), solo (S), and mini VU meters.")
+
+        # Omni-Plugin Synchronizer Controls Sub-bar
+        plugin_sync_bar = tk.Frame(mem_frame, bg="#282c34", padx=6, pady=4)
+        plugin_sync_bar.pack(fill="x", pady=(4, 0))
+
+        tk.Label(
+            plugin_sync_bar,
+            text="Omni-Plugin Live Sync:",
+            font=("Helvetica", 8, "bold"),
+            bg="#282c34",
+            fg="#ffd54f"
+        ).pack(side="left", padx=(0, 4))
+
+        tk.Label(plugin_sync_bar, text="Target Track:", font=("Helvetica", 8), bg="#282c34", fg="#abb2bf").pack(side="left")
+        self.plugin_track_combo = ttk.Combobox(plugin_sync_bar, values=["kick", "bass", "vocals", "synth", "master"], state="readonly", width=8)
+        self.plugin_track_combo.set("bass")
+        self.plugin_track_combo.pack(side="left", padx=4)
+
+        tk.Label(plugin_sync_bar, text="Cutoff:", font=("Helvetica", 8), bg="#282c34", fg="#abb2bf").pack(side="left")
+        self.cutoff_scale = tk.Scale(
+            plugin_sync_bar,
+            from_=20.0,
+            to=20000.0,
+            resolution=10.0,
+            orient="horizontal",
+            length=100,
+            bg="#282c34",
+            fg="#abb2bf",
+            highlightthickness=0,
+            font=("Monospace", 7),
+            command=self._on_plugin_cutoff_moved
+        )
+        self.cutoff_scale.set(1200.0)
+        self.cutoff_scale.pack(side="left", padx=4)
+        ToolTip(self.cutoff_scale, "Live VST/LV2 filter cutoff parameter streamed over Omni-Plugin Bridge.")
+
+        tk.Label(plugin_sync_bar, text="Drive:", font=("Helvetica", 8), bg="#282c34", fg="#abb2bf").pack(side="left")
+        self.drive_scale = tk.Scale(
+            plugin_sync_bar,
+            from_=0.0,
+            to=1.0,
+            resolution=0.01,
+            orient="horizontal",
+            length=80,
+            bg="#282c34",
+            fg="#abb2bf",
+            highlightthickness=0,
+            font=("Monospace", 7),
+            command=self._on_plugin_drive_moved
+        )
+        self.drive_scale.set(0.25)
+        self.drive_scale.pack(side="left", padx=4)
+        ToolTip(self.drive_scale, "Live VST/LV2 saturation drive parameter streamed over Omni-Plugin Bridge.")
+
+        self.plugin_sync_status = tk.Label(
+            plugin_sync_bar,
+            text="IPC: Idle",
+            font=("Helvetica", 8, "italic"),
+            bg="#282c34",
+            fg="#98c379"
+        )
+        self.plugin_sync_status.pack(side="right", padx=4)
 
         self.track_widgets = {} # { track_name: { 'fader': Scale, 'mute_btn': Button, 'solo_btn': Button, 'vu': Canvas } }
 
@@ -656,6 +739,25 @@ class OmniDashboard(tk.Tk):
         self.vu_text_lbl.config(text=f"L: {db:.1f} dB | R: {db:.1f} dB")
         self._draw_vu_meter(peak_ratio, peak_ratio * 0.95)
 
+    def start_health_watchdog(self):
+        """Asynchronous background watchdog evaluating system daemon health."""
+        if not health_watchdog:
+            return
+        def _watch():
+            wd = health_watchdog.HealthWatchdog()
+            while getattr(self, "_running", True):
+                try:
+                    status = wd.probe_all()
+                    alive_count = sum(1 for v in status.values() if v.get("alive"))
+                    total = len(status)
+                    # Update badge in main thread
+                    fg_color = "#a6e22e" if alive_count >= 2 else "#e5c07b"
+                    self.after(0, lambda c=fg_color, s=f"WATCHDOG: {alive_count}/{total}": self.badge_watchdog.config(text=s, fg=c))
+                except Exception:
+                    pass
+                time.sleep(6)
+        threading.Thread(target=_watch, daemon=True).start()
+
     def _run_macro(self, macro_cmd):
         self.muse_prompt.delete(0, tk.END)
         self.muse_prompt.insert(0, macro_cmd)
@@ -818,6 +920,51 @@ class OmniDashboard(tk.Tk):
             w["solo_btn"].config(bg="#ffeb3b" if is_solo else "#3a3f4b", fg="#000" if is_solo else "#fff")
         self.send_osc_direct(f"/track/{track_name}/solo", 1.0 if is_solo else 0.0)
         self.log(f"Track {track_name.upper()} {'SOLOED' if is_solo else 'UNSOLOED'}.")
+
+    def _on_plugin_cutoff_moved(self, val):
+        track = self.plugin_track_combo.get() or "bass"
+        v = float(val)
+        if session_memory:
+            session_memory.SessionMemory().sync_plugin_parameter(track, "omni_filter", "cutoff", v)
+        self.plugin_sync_status.config(text=f"Sync: {track}/cutoff={int(v)}Hz")
+        self.send_osc_direct(f"/track/{track}/plugin/omni_filter/cutoff", v)
+
+    def _on_plugin_drive_moved(self, val):
+        track = self.plugin_track_combo.get() or "bass"
+        v = float(val)
+        if session_memory:
+            session_memory.SessionMemory().sync_plugin_parameter(track, "omni_filter", "drive", v)
+        self.plugin_sync_status.config(text=f"Sync: {track}/drive={v:.2f}")
+        self.send_osc_direct(f"/track/{track}/plugin/omni_filter/drive", v)
+
+    def import_session_dialog(self):
+        if not session_memory or not session_importer:
+            self.log("Session importer or session memory module missing.")
+            return
+
+        in_file = filedialog.askopenfilename(
+            title="Import Session File",
+            filetypes=[
+                ("Supported Sessions", "*.ardour *.mmp *.json *.xml"),
+                ("Ardour Session (*.ardour)", "*.ardour"),
+                ("LMMS Project (*.mmp)", "*.mmp"),
+                ("Universal Manifest (*.json)", "*.json"),
+                ("All Files", "*.*")
+            ]
+        )
+        if in_file:
+            try:
+                mem = session_memory.SessionMemory()
+                if in_file.endswith(".mmp"):
+                    imported = session_importer.import_from_lmms(in_file, mem)
+                elif in_file.endswith(".json"):
+                    imported = session_importer.import_from_manifest(in_file, mem)
+                else:
+                    imported = session_importer.import_from_ardour(in_file, mem)
+                self.log(f"[Session Importer] Imported {len(imported)} tracks from {os.path.basename(in_file)}.")
+                self.refresh_session_memory()
+            except Exception as e:
+                self.log(f"Import session error: {e}")
 
     def export_session_dialog(self):
         if not session_memory or not session_exporter:
