@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.39] - 2026-03-30
+### Added
+- Native C++ session management bridge (`bobui_bridge/bobui_session_bridge.hpp`, `bobui_bridge/bobui_session_bridge.cpp`) supporting Ardour and LMMS XML import/export.
+- High-level BobUI session helpers (`export_session_from_bobui`, `import_session_to_bobui`) in `bobui_bridge.py`.
+- Automated unit test suite `TestBobUISessionManagement` in `tests/test_ecosystem.py` (15/15 tests passing).
+
 ## [1.0.38] - 2026-03-30
 ### Added
 - Multi-parameter Omni-Plugin preset manager (`PLUGIN_PRESETS` and `apply_plugin_preset`) in `session_memory.py`.

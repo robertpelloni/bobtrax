@@ -12,6 +12,9 @@ import os
 import socket
 import sys
 
+import session_exporter
+import session_importer
+
 DEFAULT_SOCKET_PATH = "/tmp/bobtrax_omni_bridge.sock"
 
 
@@ -68,6 +71,24 @@ def verify_omni_connection(socket_path=DEFAULT_SOCKET_PATH):
             return len(data) > 0
     except Exception:
         return False
+
+
+def export_session_from_bobui(tracks, format_type, target_path):
+    """Exports BobUI track dictionary to Ardour, LMMS, or JSON manifest."""
+    if format_type.lower() == "ardour":
+        return session_exporter.export_to_ardour(tracks, target_path)
+    elif format_type.lower() == "lmms":
+        return session_exporter.export_to_lmms(tracks, target_path)
+    return session_exporter.export_manifest(tracks, target_path)
+
+
+def import_session_to_bobui(source_path, session_mem=None):
+    """Imports foreign DAW session file into BobUI track representations."""
+    if source_path.endswith(".mmp"):
+        return session_importer.import_from_lmms(source_path, session_mem)
+    elif source_path.endswith(".json"):
+        return session_importer.import_from_manifest(source_path, session_mem)
+    return session_importer.import_from_ardour(source_path, session_mem)
 
 
 if __name__ == "__main__":

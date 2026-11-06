@@ -219,6 +219,31 @@ class TestBobUIBridgeSync(unittest.TestCase):
         self.assertEqual(params, {})
 
 
+class TestBobUISessionManagement(unittest.TestCase):
+    def test_bobui_session_export_and_import(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracks = {
+                "kick": {"fader": 1.5, "muted": False, "soloed": True},
+                "bass": {"fader": -5.0, "muted": True, "soloed": False}
+            }
+            ardour_target = os.path.join(tmpdir, "bobui_test.ardour")
+            lmms_target = os.path.join(tmpdir, "bobui_test.mmp")
+
+            bobui_bridge.export_session_from_bobui(tracks, "ardour", ardour_target)
+            bobui_bridge.export_session_from_bobui(tracks, "lmms", lmms_target)
+
+            self.assertTrue(os.path.exists(ardour_target))
+            self.assertTrue(os.path.exists(lmms_target))
+
+            imported_ardour = bobui_bridge.import_session_to_bobui(ardour_target)
+            imported_lmms = bobui_bridge.import_session_to_bobui(lmms_target)
+
+            self.assertIn("kick", imported_ardour)
+            self.assertEqual(imported_ardour["kick"]["fader"], 1.5)
+            self.assertIn("bass", imported_lmms)
+            self.assertTrue(imported_lmms["bass"]["muted"])
+
+
 class TestWaveformTelemetry(unittest.TestCase):
     def test_meter_telemetry_waveform(self):
         # Verify emit_meter_packet executes safely without crashing
