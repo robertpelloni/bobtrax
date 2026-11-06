@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.36] - 2026-03-30
+### Added
+- Native C++ BobUI Omni-Plugin Bridge Adapter (`bobui_bridge/bobui_omni_adapter.hpp`, `bobui_bridge/bobui_omni_adapter.cpp`) implementing POSIX Unix domain socket client communication with the Rust Omni-Plugin Host.
+- Python Gateway for BobUI Bridge (`bobui_bridge.py`) providing high-level `BobUIBridge` and `verify_omni_connection`.
+- Unit test coverage `TestBobUIBridgeSync` in `tests/test_ecosystem.py` (12/12 unit tests passing).
+
 ## [1.0.35] - 2026-03-30
 ### Added
 - Real-Time Omni-Plugin Bridge Live IPC synchronizer in `omni_plugin_bridge/src/lib.rs` and `omni_plugin_bridge/src/bin/omni_host.rs` supporting thread-safe synchronized parameter maps and command streaming (`SET`, `GET_ALL`).

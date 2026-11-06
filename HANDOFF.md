@@ -1,5 +1,11 @@
 # Handoff Document
 
+## Session Summary (1.0.36)
+- **BobUI Bridge Integration & Native C++ Adapter:**
+  - Implemented `bobui_bridge/bobui_omni_adapter.hpp` and `bobui_bridge/bobui_omni_adapter.cpp` using POSIX domain sockets to connect native Qt/C++ widgets to the Rust Omni-Plugin Host.
+  - Implemented `bobui_bridge.py` as an IPC gateway between BobUI and the ecosystem.
+  - Added unit test assertions `TestBobUIBridgeSync` in `tests/test_ecosystem.py` (12/12 unit tests passing).
+
 ## Session Summary (1.0.35)
 - **Omni-Plugin Bridge & Real-Time Parameter Synchronization:**
   - Extended Rust `omni_plugin_bridge` with thread-safe parameter storage (`HashMap`), live socket command streaming (`SET <key> <val>` and `GET_ALL`), and unit test coverage.

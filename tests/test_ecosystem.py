@@ -26,6 +26,7 @@ import wasm_host
 import session_exporter
 import session_importer
 import health_watchdog
+import bobui_bridge
 
 
 class TestSessionMemory(unittest.TestCase):
@@ -193,6 +194,20 @@ class TestOmniPluginBridgeSync(unittest.TestCase):
             drive = mem.sync_plugin_parameter("bass", "omni_filter", "drive", 0.45, send_ipc=False)
             self.assertEqual(drive, 0.45)
             self.assertEqual(mem.omni_synced_params["bass:omni_filter:drive"], 0.45)
+
+
+class TestBobUIBridgeSync(unittest.TestCase):
+    def test_bobui_bridge_parameter_sync(self):
+        bridge = bobui_bridge.BobUIBridge(socket_path="/tmp/nonexistent_test.sock")
+        self.assertFalse(bridge.is_host_alive())
+
+        res = bridge.set_parameter("vocals", "reverb", "decay", 2.8)
+        self.assertEqual(res["status"], "error")
+        self.assertEqual(res["key"], "vocals:reverb:decay")
+        self.assertEqual(res["value"], 2.8)
+
+        params = bridge.get_all_parameters()
+        self.assertEqual(params, {})
 
 
 if __name__ == "__main__":

@@ -1,0 +1,76 @@
+#!/usr/bin/env python3
+"""
+BobUI Omni-Plugin Bridge Python Gateway
+
+Facilitates bidirectional interaction between BobUI widgets, SessionMemory,
+and the Rust Omni-Plugin Host over Unix domain sockets.
+"""
+
+import json
+import logging
+import os
+import socket
+import sys
+
+DEFAULT_SOCKET_PATH = "/tmp/bobtrax_omni_bridge.sock"
+
+
+class BobUIBridge:
+    def __init__(self, socket_path=DEFAULT_SOCKET_PATH):
+        self.socket_path = socket_path
+
+    def is_host_alive(self):
+        return verify_omni_connection(self.socket_path)
+
+    def set_parameter(self, track_id, plugin_id, param_name, value):
+        key = f"{track_id}:{plugin_id}:{param_name}"
+        if not os.path.exists(self.socket_path):
+            return {"status": "error", "message": "Socket not found", "key": key, "value": value}
+
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(1.0)
+                client.connect(self.socket_path)
+                cmd = f"SET {key} {value}\n"
+                client.sendall(cmd.encode("utf-8"))
+                resp = client.recv(1024).decode("utf-8").strip()
+                return {"status": "ok", "response": resp, "key": key, "value": value}
+        except Exception as e:
+            return {"status": "error", "message": str(e), "key": key, "value": value}
+
+    def get_all_parameters(self):
+        if not os.path.exists(self.socket_path):
+            return {}
+
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(1.0)
+                client.connect(self.socket_path)
+                client.sendall(b"GET_ALL\n")
+                resp = client.recv(4096).decode("utf-8").strip()
+                data = json.loads(resp)
+                return data.get("params", {})
+        except Exception as e:
+            logging.debug(f"BobUIBridge get_all_parameters error: {e}")
+            return {}
+
+
+def verify_omni_connection(socket_path=DEFAULT_SOCKET_PATH):
+    """Verifies whether the Rust Omni-Plugin host is active and responsive."""
+    if not os.path.exists(socket_path):
+        return False
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+            s.settimeout(0.5)
+            s.connect(socket_path)
+            s.sendall(b"GET_ALL\n")
+            data = s.recv(256)
+            return len(data) > 0
+    except Exception:
+        return False
+
+
+if __name__ == "__main__":
+    path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SOCKET_PATH
+    alive = verify_omni_connection(path)
+    print(f"Omni Bridge Host at {path}: {'ALIVE' if alive else 'DISCONNECTED'}")
