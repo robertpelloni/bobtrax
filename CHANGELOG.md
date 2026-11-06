@@ -2,11 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.33] - 2026-11-04
+### Added
+- Cross-DAW Session Importer engine in `session_importer.py` for direct ingestion of Ardour XML (`.ardour`), LMMS XML (`.mmp`), and universal JSON manifests into `session_memory.py`.
+- Interactive "Import Session..." dialog in `gui_launcher.py` with automatic mixer strip re-rendering.
+- Unit test coverage for the complete session export and import cycle in `tests/test_ecosystem.py`.
+
 ## [1.0.32] - 2026-11-04
 ### Added
 - Continuous Background System Health Watchdog daemon in `health_watchdog.py` probing HTTP, TCP, UDP, and Unix socket endpoints with self-healing capabilities.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
+
+## [1.0.35] - 2026-03-30
+### Added
+- Real-Time Omni-Plugin Bridge Live IPC synchronizer in `omni_plugin_bridge/src/lib.rs` and `omni_plugin_bridge/src/bin/omni_host.rs` supporting thread-safe synchronized parameter maps and command streaming (`SET`, `GET_ALL`).
+- Inter-DAW plugin parameter sync methods (`sync_plugin_parameter`, `_send_omni_ipc`) in `session_memory.py`.
+- Interactive Omni-Plugin Live Sync controls in `gui_launcher.py` with Cutoff and Drive sliders and real-time OSC & IPC broadcast.
+- Automated unit test suite additions in `tests/test_ecosystem.py` for plugin parameter synchronization (11/11 tests passing).
+
+## [1.0.34] - 2026-03-30
+### Added
+- System-level dependency integration and discovery in `build.sh` for PCRE2, Harfbuzz, Freetype, Libjpeg, Libpng, DoubleConversion, Mesa/GL, and X11 extensions (`libxrandr-dev`, `libxinerama-dev`, `libxcursor-dev`, `libxi-dev`).
+- Custom self-created developer audit tool `/home/jules/self_created_tools/audit_ecosystem.py` verifying full end-to-end repository health, unit tests, cargo tests, and documentation synchronization.
+- Build stabilization investigation for `bobui` submodule identifying upstream CMake include paths and Qt library bootstrapping requirements.
 
 ## [1.0.31] - 2026-11-04
 ### Added
