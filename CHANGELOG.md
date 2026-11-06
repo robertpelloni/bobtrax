@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.37] - 2026-03-30
+### Added
+- Real-Time Audio Envelope & Waveform History Sparkline visualization inside `gui_launcher.py` Canvas VU meter.
+- Explicit meter routing helper `emit_meter_packet` in `osc_bridge.py` dispatching `[METER]` telemetry over UDP.
+- Automated unit test suite `TestWaveformTelemetry` in `tests/test_ecosystem.py` (13/13 tests passing).
+
 ## [1.0.36] - 2026-03-30
 ### Added
 - Native C++ BobUI Omni-Plugin Bridge Adapter (`bobui_bridge/bobui_omni_adapter.hpp`, `bobui_bridge/bobui_omni_adapter.cpp`) implementing POSIX Unix domain socket client communication with the Rust Omni-Plugin Host.

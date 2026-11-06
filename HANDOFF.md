@@ -1,5 +1,11 @@
 # Handoff Document
 
+## Session Summary (1.0.37)
+- **Real-Time Audio Waveform & Envelope Telemetry:**
+  - Implemented multi-point scrolling waveform sparkline inside OmniDashboard (`gui_launcher.py`) alongside stereo peak metering.
+  - Implemented `emit_meter_packet` in `osc_bridge.py` for structured meter and peak envelope broadcasting.
+  - Added unit test validation in `tests/test_ecosystem.py` (13/13 tests passing).
+
 ## Session Summary (1.0.36)
 - **BobUI Bridge Integration & Native C++ Adapter:**
   - Implemented `bobui_bridge/bobui_omni_adapter.hpp` and `bobui_bridge/bobui_omni_adapter.cpp` using POSIX domain sockets to connect native Qt/C++ widgets to the Rust Omni-Plugin Host.

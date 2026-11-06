@@ -82,6 +82,15 @@ def send_telemetry(event_type, msg):
         except Exception:
             pass
 
+def emit_meter_packet(address, value):
+    """Explicitly generates and routes a meter packet to session memory and telemetry."""
+    if memory_hub:
+        try:
+            memory_hub.record_osc_change(address, float(value))
+        except Exception:
+            pass
+    send_telemetry("METER", f"{address}:{value}")
+
 def broadcast_handler(address, *args):
     """
     Catches incoming OSC messages, checks for translations, and routes them.

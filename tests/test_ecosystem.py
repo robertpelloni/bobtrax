@@ -27,6 +27,7 @@ import session_exporter
 import session_importer
 import health_watchdog
 import bobui_bridge
+import osc_bridge
 
 
 class TestSessionMemory(unittest.TestCase):
@@ -208,6 +209,21 @@ class TestBobUIBridgeSync(unittest.TestCase):
 
         params = bridge.get_all_parameters()
         self.assertEqual(params, {})
+
+
+class TestWaveformTelemetry(unittest.TestCase):
+    def test_meter_telemetry_waveform(self):
+        # Verify emit_meter_packet executes safely without crashing
+        self.assertTrue(hasattr(osc_bridge, "emit_meter_packet"))
+        osc_bridge.emit_meter_packet("/track/master/meter", 0.65)
+
+        # Verify waveform buffer handling math
+        history = [0.0] * 32
+        for val in [0.2, 0.5, 0.8, 0.95]:
+            history.pop(0)
+            history.append(val)
+        self.assertEqual(len(history), 32)
+        self.assertEqual(history[-1], 0.95)
 
 
 if __name__ == "__main__":

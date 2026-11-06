@@ -168,6 +168,7 @@ class OmniDashboard(tk.Tk):
         self.selected_stems = []
         self.selected_audio_file = None
         self.tray_icon = None
+        self.meter_history = [0.0] * 32
 
         # Build UI layout
         self.build_ui()
@@ -708,36 +709,53 @@ class OmniDashboard(tk.Tk):
         self.main_canvas.itemconfig(self.canvas_window, width=event.width)
 
     def _draw_vu_meter(self, level_l, level_r):
-        """Draws stereo peak bars on the VU meter canvas (0.0 to 1.0 scale)."""
+        """Draws stereo peak bars and scrolling waveform history on the VU meter canvas."""
         self.vu_canvas.delete("all")
         w = 320
         h = 18
+
         # Background channels (Left top, Right bottom)
         self.vu_canvas.create_rectangle(0, 1, w, 7, fill="#222", outline="")
         self.vu_canvas.create_rectangle(0, 10, w, 16, fill="#222", outline="")
 
         def get_color(ratio):
             if ratio < 0.75:
-                return "#2e7d32"  # Green
+                return "#2e7d32"
             elif ratio < 0.90:
-                return "#ffd54f"  # Yellow
-            return "#f44336"      # Red
+                return "#ffd54f"
+            return "#f44336"
 
-        len_l = int(max(0.0, min(1.0, level_l)) * w)
-        len_r = int(max(0.0, min(1.0, level_r)) * w)
+        len_l = int(max(0.0, min(1.0, level_l)) * (w * 0.7))
+        len_r = int(max(0.0, min(1.0, level_r)) * (w * 0.7))
 
         if len_l > 0:
             self.vu_canvas.create_rectangle(0, 1, len_l, 7, fill=get_color(level_l), outline="")
         if len_r > 0:
             self.vu_canvas.create_rectangle(0, 10, len_r, 16, fill=get_color(level_r), outline="")
 
+        # Waveform envelope mini-history sparkline (rightmost 30% of canvas)
+        wave_start_x = int(w * 0.72)
+        wave_width = w - wave_start_x
+        num_points = len(self.meter_history)
+        step = wave_width / max(1, num_points - 1)
+
+        for i in range(num_points - 1):
+            y1 = int(h / 2 - (self.meter_history[i] * (h / 2 - 2)))
+            y2 = int(h / 2 - (self.meter_history[i + 1] * (h / 2 - 2)))
+            x1 = int(wave_start_x + i * step)
+            x2 = int(wave_start_x + (i + 1) * step)
+            self.vu_canvas.create_line(x1, y1, x2, y2, fill="#61dafb", width=1)
+
     def _update_meter_telemetry(self, peak_ratio):
-        """Updates live VU meter from incoming bridge telemetry."""
-        # Convert ratio (0.0 to 1.0) to stereo display
+        """Updates live VU meter and waveform history buffer from incoming bridge telemetry."""
         import math
-        db = 20.0 * math.log10(max(1e-4, peak_ratio))
+        clamped_ratio = max(0.0, min(1.0, peak_ratio))
+        self.meter_history.pop(0)
+        self.meter_history.append(clamped_ratio)
+
+        db = 20.0 * math.log10(max(1e-4, clamped_ratio))
         self.vu_text_lbl.config(text=f"L: {db:.1f} dB | R: {db:.1f} dB")
-        self._draw_vu_meter(peak_ratio, peak_ratio * 0.95)
+        self._draw_vu_meter(clamped_ratio, clamped_ratio * 0.95)
 
     def start_health_watchdog(self):
         """Asynchronous background watchdog evaluating system daemon health."""
