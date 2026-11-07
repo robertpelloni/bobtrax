@@ -91,6 +91,15 @@ class TestSessionMemory(unittest.TestCase):
         self.assertTrue(any("snare" in r[0] for r in reverted))
         self.assertEqual(self.mem.tracks["snare"].fader, 0.0)
 
+    def test_checkpoint_metadata_details(self):
+        self.mem.set_fader("vocals", 2.0)
+        self.mem.save_checkpoint("vox_lead")
+        details = self.mem.get_checkpoint_details("vox_lead")
+        self.assertIsNotNone(details)
+        self.assertEqual(details["name"], "vox_lead")
+        self.assertIn("vocals", details["tracks"])
+        self.assertGreaterEqual(details["track_count"], 1)
+
 
 class TestAiMixingAssistant(unittest.TestCase):
     def test_acoustic_dsp_rules(self):

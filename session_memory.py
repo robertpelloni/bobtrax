@@ -235,6 +235,19 @@ class SessionMemory:
     def list_checkpoints(self):
         return list(self.checkpoints.keys())
 
+    def get_checkpoint_details(self, name):
+        """Returns structured metadata about a specific checkpoint snapshot."""
+        if name not in self.checkpoints:
+            return None
+        cp = self.checkpoints[name]
+        return {
+            "name": name,
+            "timestamp": cp.get("timestamp"),
+            "time_str": cp.get("time_str"),
+            "track_count": len(cp.get("snapshot", {})),
+            "tracks": list(cp.get("snapshot", {}).keys())
+        }
+
     def undo_last_action(self):
         """Reverts parameter changes introduced by the most recent AI mixing action."""
         if not self.action_history:

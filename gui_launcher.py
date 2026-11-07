@@ -431,6 +431,10 @@ class OmniDashboard(tk.Tk):
         self.save_snap_btn.pack(side="right", padx=2)
         ToolTip(self.save_snap_btn, "Save a named checkpoint of all track faders and settings.")
 
+        self.restore_snap_btn = ttk.Button(mem_ctrl_bar, text="Restore Checkpoint...", command=self.restore_checkpoint_dialog)
+        self.restore_snap_btn.pack(side="right", padx=2)
+        ToolTip(self.restore_snap_btn, "Browse and restore previous session checkpoints across DAWs.")
+
         self.import_session_btn = ttk.Button(mem_ctrl_bar, text="Import Session...", command=self.import_session_dialog)
         self.import_session_btn.pack(side="right", padx=2)
         ToolTip(self.import_session_btn, "Import track faders and settings from an Ardour (.ardour) or LMMS (.mmp) file.")
@@ -1069,6 +1073,41 @@ class OmniDashboard(tk.Tk):
             else:
                 self.log("[Session Sync Note] Bridge socket idle or unreachable.")
         self.refresh_session_memory()
+
+    def restore_checkpoint_dialog(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        checkpoints = mem.list_checkpoints()
+        if not checkpoints:
+            messagebox.showinfo("Checkpoints", "No checkpoints saved in current session.")
+            return
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Restore Session Checkpoint")
+        dialog.geometry("340x180")
+        dialog.transient(self)
+
+        tk.Label(dialog, text="Select Checkpoint to Restore:", font=("Helvetica", 9, "bold")).pack(pady=8)
+        combo = ttk.Combobox(dialog, values=checkpoints, state="readonly", width=28)
+        combo.set(checkpoints[-1])
+        combo.pack(pady=4)
+
+        def _do_restore():
+            chosen = combo.get()
+            if chosen:
+                ok = mem.restore_checkpoint(chosen)
+                if ok:
+                    for t_name, track in mem.tracks.items():
+                        self.send_osc_direct(f"/track/{t_name}/fader", track.fader)
+                    self.log(f"[Session Memory] Checkpoint '{chosen}' restored across all DAWs.")
+                    self.refresh_session_memory()
+            dialog.destroy()
+
+        btn_row = tk.Frame(dialog)
+        btn_row.pack(pady=12)
+        ttk.Button(btn_row, text="Restore", command=_do_restore).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side="left", padx=4)
 
     def save_session_snapshot(self):
         if not session_memory:

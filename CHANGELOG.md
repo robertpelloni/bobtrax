@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.45] - 2026-03-30
+### Added
+- Checkpoint metadata inspector `get_checkpoint_details` in `session_memory.py`.
+- Interactive Checkpoint Restore dialog and "Restore Checkpoint..." browser in `gui_launcher.py`.
+- Automated unit test coverage `test_checkpoint_metadata_details` in `tests/test_ecosystem.py` (20/20 tests passing).
+
 ## [1.0.44] - 2026-03-30
 ### Added
 - Cross-DAW Session Manifest Auto-Sync (`sync_session_manifest_to_bridge`) in `session_memory.py` pushing track architectures to the Omni-Plugin Host over IPC (`SYNC_MANIFEST`).
