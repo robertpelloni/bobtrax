@@ -14,6 +14,7 @@ import sys
 
 import session_exporter
 import session_importer
+import session_memory
 
 DEFAULT_SOCKET_PATH = "/tmp/bobtrax_omni_bridge.sock"
 
@@ -106,6 +107,24 @@ def import_session_to_bobui(source_path, session_mem=None):
     elif source_path.endswith(".json"):
         return session_importer.import_from_manifest(source_path, session_mem)
     return session_importer.import_from_ardour(source_path, session_mem)
+
+
+def create_session_checkpoint(name, mem=None):
+    """Saves a named snapshot checkpoint in session memory."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.save_checkpoint(name)
+
+
+def restore_session_checkpoint(name, mem=None):
+    """Restores a session snapshot from checkpoint."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.restore_checkpoint(name)
+
+
+def undo_session_action(mem=None):
+    """Reverts the last mixing action recorded in session memory."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.undo_last_action()
 
 
 if __name__ == "__main__":

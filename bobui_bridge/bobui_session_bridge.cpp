@@ -84,3 +84,25 @@ std::vector<BobUITrackDescriptor> BobUISessionBridge::importSessionFromArdour(co
 
     return result;
 }
+
+bool BobUISessionBridge::saveCheckpoint(const std::string& name, const std::vector<BobUITrackDescriptor>& tracks) {
+    m_checkpoints[name] = tracks;
+    m_undoHistory.push_back(tracks);
+    return true;
+}
+
+std::vector<BobUITrackDescriptor> BobUISessionBridge::restoreCheckpoint(const std::string& name) {
+    auto it = m_checkpoints.find(name);
+    if (it != m_checkpoints.end()) {
+        return it->second;
+    }
+    return {};
+}
+
+std::vector<BobUITrackDescriptor> BobUISessionBridge::undoLastAction() {
+    if (m_undoHistory.size() > 1) {
+        m_undoHistory.pop_back(); // Remove current
+        return m_undoHistory.back();
+    }
+    return {};
+}

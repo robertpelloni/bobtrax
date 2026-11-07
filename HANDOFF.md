@@ -1,5 +1,11 @@
 # Handoff Document
 
+## Session Summary (1.0.43)
+- **BobUI Checkpoints & Undo Support:**
+  - Extended native C++ `BobUISessionBridge` with `saveCheckpoint`, `restoreCheckpoint`, and `undoLastAction`.
+  - Added session checkpoint and undo operations in `bobui_bridge.py`.
+  - Added unit test validation in `tests/test_ecosystem.py` (18/18 tests passing).
+
 ## Session Summary (1.0.42)
 - **BobUI Architecture & Integration Specification:**
   - Sourced `bobui/BOBUI_INTEGRATION.md` detailing BobUI's role as the universal GUI and asset sharing runtime across Ardour, LMMS, MusE, and Zrythm.

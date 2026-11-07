@@ -250,6 +250,26 @@ class TestBobUISessionManagement(unittest.TestCase):
             self.assertIn("bass", imported_lmms)
             self.assertTrue(imported_lmms["bass"]["muted"])
 
+    def test_bobui_checkpoint_and_undo(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.set_fader("kick", -2.0)
+            bobui_bridge.create_session_checkpoint("cp1", mem=mem)
+
+            # Alter
+            mem.set_fader("kick", -12.0)
+            self.assertEqual(mem.tracks["kick"].fader, -12.0)
+
+            # Restore via BobUI Bridge
+            bobui_bridge.restore_session_checkpoint("cp1", mem=mem)
+            self.assertEqual(mem.tracks["kick"].fader, -2.0)
+
+            # Test undo
+            mem.record_action("bobui_agent", "boost vocals", [("/track/vocals/fader", 3.0)])
+            self.assertEqual(mem.tracks["vocals"].fader, 3.0)
+            bobui_bridge.undo_session_action(mem=mem)
+            self.assertEqual(mem.tracks["vocals"].fader, 0.0)
+
 
 class TestDawRegistration(unittest.TestCase):
     def test_daw_heartbeat_and_active_filtering(self):

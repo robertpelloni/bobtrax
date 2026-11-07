@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.43] - 2026-03-30
+### Added
+- Extended native C++ `BobUISessionBridge` (`saveCheckpoint`, `restoreCheckpoint`, `undoLastAction`) in `bobui_bridge/bobui_session_bridge.hpp` / `.cpp`.
+- Python BobUI Bridge checkpoint and undo helpers (`create_session_checkpoint`, `restore_session_checkpoint`, `undo_session_action`) in `bobui_bridge.py`.
+- Automated unit test coverage `test_bobui_checkpoint_and_undo` in `tests/test_ecosystem.py` (18/18 tests passing).
+
 ## [1.0.42] - 2026-03-30
 ### Added
 - Comprehensive BobUI Architecture & Cross-DAW Integration Specification in `bobui/BOBUI_INTEGRATION.md` detailing shared audio buffers, preset repository, asset caching, and member DAW integration points.
