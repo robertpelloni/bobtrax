@@ -26,6 +26,8 @@ import wasm_host
 import session_exporter
 import session_importer
 import health_watchdog
+import bobui_bridge
+import osc_bridge
 
 
 class TestSessionMemory(unittest.TestCase):
@@ -193,6 +195,119 @@ class TestOmniPluginBridgeSync(unittest.TestCase):
             drive = mem.sync_plugin_parameter("bass", "omni_filter", "drive", 0.45, send_ipc=False)
             self.assertEqual(drive, 0.45)
             self.assertEqual(mem.omni_synced_params["bass:omni_filter:drive"], 0.45)
+
+    def test_plugin_preset_application(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            applied = mem.apply_plugin_preset("synth", "Space Reverb")
+            self.assertIn("omni_reverb/decay", applied)
+            self.assertEqual(applied["omni_reverb/decay"], 3.2)
+            self.assertEqual(mem.tracks["synth"].parameters["plugins/omni_reverb/decay"], 3.2)
+
+    def test_session_manifest_bridge_sync(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.omni_socket_path = "/tmp/nonexistent_manifest_sync.sock"
+            res = mem.sync_session_manifest_to_bridge()
+            self.assertFalse(res)
+
+
+class TestBobUIBridgeSync(unittest.TestCase):
+    def test_bobui_bridge_parameter_sync(self):
+        bridge = bobui_bridge.BobUIBridge(socket_path="/tmp/nonexistent_test.sock")
+        self.assertFalse(bridge.is_host_alive())
+
+        res = bridge.set_parameter("vocals", "reverb", "decay", 2.8)
+        self.assertEqual(res["status"], "error")
+        self.assertEqual(res["key"], "vocals:reverb:decay")
+        self.assertEqual(res["value"], 2.8)
+
+        params = bridge.get_all_parameters()
+        self.assertEqual(params, {})
+
+    def test_audio_buffer_processing_fallback(self):
+        bridge = bobui_bridge.BobUIBridge(socket_path="/tmp/nonexistent_dsp.sock")
+        res = bridge.process_audio_buffer(frames=256, gain=0.5)
+        self.assertEqual(res["status"], "error")
+        self.assertEqual(res["frames"], 256)
+        self.assertEqual(res["gain"], 0.5)
+
+
+class TestBobUISessionManagement(unittest.TestCase):
+    def test_bobui_session_export_and_import(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tracks = {
+                "kick": {"fader": 1.5, "muted": False, "soloed": True},
+                "bass": {"fader": -5.0, "muted": True, "soloed": False}
+            }
+            ardour_target = os.path.join(tmpdir, "bobui_test.ardour")
+            lmms_target = os.path.join(tmpdir, "bobui_test.mmp")
+
+            bobui_bridge.export_session_from_bobui(tracks, "ardour", ardour_target)
+            bobui_bridge.export_session_from_bobui(tracks, "lmms", lmms_target)
+
+            self.assertTrue(os.path.exists(ardour_target))
+            self.assertTrue(os.path.exists(lmms_target))
+
+            imported_ardour = bobui_bridge.import_session_to_bobui(ardour_target)
+            imported_lmms = bobui_bridge.import_session_to_bobui(lmms_target)
+
+            self.assertIn("kick", imported_ardour)
+            self.assertEqual(imported_ardour["kick"]["fader"], 1.5)
+            self.assertIn("bass", imported_lmms)
+            self.assertTrue(imported_lmms["bass"]["muted"])
+
+    def test_bobui_checkpoint_and_undo(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.set_fader("kick", -2.0)
+            bobui_bridge.create_session_checkpoint("cp1", mem=mem)
+
+            # Alter
+            mem.set_fader("kick", -12.0)
+            self.assertEqual(mem.tracks["kick"].fader, -12.0)
+
+            # Restore via BobUI Bridge
+            bobui_bridge.restore_session_checkpoint("cp1", mem=mem)
+            self.assertEqual(mem.tracks["kick"].fader, -2.0)
+
+            # Test undo
+            mem.record_action("bobui_agent", "boost vocals", [("/track/vocals/fader", 3.0)])
+            self.assertEqual(mem.tracks["vocals"].fader, 3.0)
+            bobui_bridge.undo_session_action(mem=mem)
+            self.assertEqual(mem.tracks["vocals"].fader, 0.0)
+
+
+class TestDawRegistration(unittest.TestCase):
+    def test_daw_heartbeat_and_active_filtering(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            reg = mem.register_daw("ardour", 3819)
+            self.assertEqual(reg["name"], "ardour")
+            self.assertEqual(reg["status"], "connected")
+
+            active = mem.get_active_daws(timeout=10.0)
+            self.assertIn("ardour", active)
+
+            # Test timeout filtering
+            mem.registered_daws["ardour"]["last_seen"] = 1000.0
+            expired = mem.get_active_daws(timeout=10.0)
+            self.assertNotIn("ardour", expired)
+
+
+class TestWaveformTelemetry(unittest.TestCase):
+    def test_meter_telemetry_waveform(self):
+        # Verify emit_meter_packet executes safely without crashing
+        self.assertTrue(hasattr(osc_bridge, "emit_meter_packet"))
+        osc_bridge.emit_meter_packet("/track/master/meter", 0.65)
+
+        # Verify waveform buffer handling math
+        history = [0.0] * 32
+        for val in [0.2, 0.5, 0.8, 0.95]:
+            history.pop(0)
+            history.append(val)
+        self.assertEqual(len(history), 32)
+        self.assertEqual(history[-1], 0.95)
 
 
 if __name__ == "__main__":

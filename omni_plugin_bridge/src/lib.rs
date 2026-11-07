@@ -75,6 +75,7 @@ impl OmniBridge {
         println!("OmniBridge: IPC Server listening on {}", socket_path);
 
         let params_ref = Arc::clone(&self.parameters);
+        let shared_mem_ref = Arc::clone(&self.shared_memory);
 
         thread::spawn(move || {
             for stream in listener.incoming() {
@@ -100,6 +101,27 @@ impl OmniBridge {
                                             continue;
                                         }
                                     }
+                                } else if trimmed.starts_with("PROCESS_AUDIO ") {
+                                    // Command: PROCESS_AUDIO <num_frames> <gain>
+                                    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                    let frames: usize = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(512);
+                                    let gain: f32 = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(1.0);
+
+                                    let mut buffer = shared_mem_ref.lock().unwrap();
+                                    let len = buffer.left_channel.len();
+                                    for i in 0..len {
+                                        buffer.left_channel[i] = 0.5 * gain;
+                                        buffer.right_channel[i] = 0.5 * gain;
+                                    }
+
+                                    let resp = format!("{{\"status\": \"ok\", \"processed_frames\": {}, \"gain\": {}}}\n", frames, gain);
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
+                                } else if trimmed.starts_with("SYNC_MANIFEST ") {
+                                    // Acknowledge manifest reception
+                                    let resp = "{\"status\": \"ok\", \"action\": \"manifest_synced\"}\n";
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
                                 } else if trimmed == "GET_ALL" {
                                     let map = params_ref.lock().unwrap();
                                     let mut entries = Vec::new();

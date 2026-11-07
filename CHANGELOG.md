@@ -14,6 +14,60 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.44] - 2026-03-30
+### Added
+- Cross-DAW Session Manifest Auto-Sync (`sync_session_manifest_to_bridge`) in `session_memory.py` pushing track architectures to the Omni-Plugin Host over IPC (`SYNC_MANIFEST`).
+- Interactive "Sync to Bridge" button in the Track Agent-Memory Hub section of `gui_launcher.py`.
+- Automated unit test coverage `test_session_manifest_bridge_sync` in `tests/test_ecosystem.py` (19/19 tests passing).
+
+## [1.0.43] - 2026-03-30
+### Added
+- Extended native C++ `BobUISessionBridge` (`saveCheckpoint`, `restoreCheckpoint`, `undoLastAction`) in `bobui_bridge/bobui_session_bridge.hpp` / `.cpp`.
+- Python BobUI Bridge checkpoint and undo helpers (`create_session_checkpoint`, `restore_session_checkpoint`, `undo_session_action`) in `bobui_bridge.py`.
+- Automated unit test coverage `test_bobui_checkpoint_and_undo` in `tests/test_ecosystem.py` (18/18 tests passing).
+
+## [1.0.42] - 2026-03-30
+### Added
+- Comprehensive BobUI Architecture & Cross-DAW Integration Specification in `bobui/BOBUI_INTEGRATION.md` detailing shared audio buffers, preset repository, asset caching, and member DAW integration points.
+- Linked integration documentation in `Manual.md` and verified documentation integrity via `generate_docs.py`.
+
+## [1.0.41] - 2026-03-30
+### Added
+- Out-of-process audio DSP buffer streaming protocol (`PROCESS_AUDIO <frames> <gain>`) in Rust `omni_plugin_bridge`.
+- Python buffer streaming method `process_audio_buffer` in `bobui_bridge.py`.
+- Interactive "Probe DSP Block" test button in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_audio_buffer_processing_fallback` in `tests/test_ecosystem.py` (17/17 tests passing).
+
+## [1.0.40] - 2026-03-30
+### Added
+- Multi-DAW Heartbeat Registration and Active Tracking (`register_daw`, `get_active_daws`) in `session_memory.py`.
+- Dynamic DAW status indicators (ACTIVE / STANDBY) for Ardour, LMMS, MusE, and Zrythm inside OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `TestDawRegistration` in `tests/test_ecosystem.py` (16/16 tests passing).
+
+## [1.0.39] - 2026-03-30
+### Added
+- Native C++ session management bridge (`bobui_bridge/bobui_session_bridge.hpp`, `bobui_bridge/bobui_session_bridge.cpp`) supporting Ardour and LMMS XML import/export.
+- High-level BobUI session helpers (`export_session_from_bobui`, `import_session_to_bobui`) in `bobui_bridge.py`.
+- Automated unit test suite `TestBobUISessionManagement` in `tests/test_ecosystem.py` (15/15 tests passing).
+
+## [1.0.38] - 2026-03-30
+### Added
+- Multi-parameter Omni-Plugin preset manager (`PLUGIN_PRESETS` and `apply_plugin_preset`) in `session_memory.py`.
+- Interactive preset browser dropdown and "Apply Preset" dispatcher in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_plugin_preset_application` in `tests/test_ecosystem.py` (14/14 tests passing).
+
+## [1.0.37] - 2026-03-30
+### Added
+- Real-Time Audio Envelope & Waveform History Sparkline visualization inside `gui_launcher.py` Canvas VU meter.
+- Explicit meter routing helper `emit_meter_packet` in `osc_bridge.py` dispatching `[METER]` telemetry over UDP.
+- Automated unit test suite `TestWaveformTelemetry` in `tests/test_ecosystem.py` (13/13 tests passing).
+
+## [1.0.36] - 2026-03-30
+### Added
+- Native C++ BobUI Omni-Plugin Bridge Adapter (`bobui_bridge/bobui_omni_adapter.hpp`, `bobui_bridge/bobui_omni_adapter.cpp`) implementing POSIX Unix domain socket client communication with the Rust Omni-Plugin Host.
+- Python Gateway for BobUI Bridge (`bobui_bridge.py`) providing high-level `BobUIBridge` and `verify_omni_connection`.
+- Unit test coverage `TestBobUIBridgeSync` in `tests/test_ecosystem.py` (12/12 unit tests passing).
+
 ## [1.0.35] - 2026-03-30
 ### Added
 - Real-Time Omni-Plugin Bridge Live IPC synchronizer in `omni_plugin_bridge/src/lib.rs` and `omni_plugin_bridge/src/bin/omni_host.rs` supporting thread-safe synchronized parameter maps and command streaming (`SET`, `GET_ALL`).

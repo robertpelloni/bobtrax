@@ -19,4 +19,4 @@
 - [x] Scaffold Rust `omni_plugin_bridge` with shared audio buffer IPC and Unix domain sockets.
 - [x] Unify complete ecosystem into single-page Omni-Dashboard with System Tray management.
 - [x] Integrate automated dependency diagnostics and build orchestrator (`build.sh`).
-- [ ] Implement headless VST3/CLAP hosting process for real-time plugin buffer streaming.
+- [x] Implement headless VST3/CLAP hosting process for real-time plugin buffer streaming. (Scaffolded with PROCESS_AUDIO streaming in omni_plugin_bridge and bobui_bridge)

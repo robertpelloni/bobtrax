@@ -19,6 +19,30 @@ import time
 MEMORY_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), ".bobtrax_session_memory.json"))
 DEFAULT_OMNI_SOCKET = "/tmp/bobtrax_omni_bridge.sock"
 
+PLUGIN_PRESETS = {
+    "Warm Tube": {
+        "omni_saturation/drive": 0.45,
+        "omni_saturation/warmth": 0.70,
+        "omni_filter/cutoff": 14000.0
+    },
+    "Opto Comp": {
+        "omni_compressor/threshold": -18.0,
+        "omni_compressor/ratio": 3.5,
+        "omni_compressor/attack": 25.0,
+        "omni_compressor/release": 150.0
+    },
+    "Space Reverb": {
+        "omni_reverb/decay": 3.2,
+        "omni_reverb/damping": 0.5,
+        "omni_reverb/mix": 0.28
+    },
+    "Clean Limiter": {
+        "omni_limiter/ceiling": -0.2,
+        "omni_limiter/threshold": -2.0,
+        "omni_limiter/release": 50.0
+    }
+}
+
 
 class TrackState:
     def __init__(self, name, role="generic"):
@@ -88,8 +112,29 @@ class SessionMemory:
         self.checkpoints = {}
         self.omni_socket_path = DEFAULT_OMNI_SOCKET
         self.omni_synced_params = {}
+        self.registered_daws = {}
         self._load()
         self._initialized = True
+
+    def register_daw(self, daw_name, port=None):
+        """Records active DAW heartbeat and communication endpoint."""
+        name = daw_name.lower()
+        self.registered_daws[name] = {
+            "name": name,
+            "port": port,
+            "last_seen": time.time(),
+            "status": "connected"
+        }
+        self._save()
+        return self.registered_daws[name]
+
+    def get_active_daws(self, timeout=60.0):
+        """Returns map of DAWs active within the timeout window."""
+        now = time.time()
+        return {
+            k: v for k, v in self.registered_daws.items()
+            if (now - v.get("last_seen", 0)) <= timeout
+        }
 
     def infer_role(self, track_name):
         name = track_name.lower()
@@ -225,6 +270,40 @@ class SessionMemory:
             self._send_omni_ipc(full_key, float(value))
 
         return self.omni_synced_params[full_key]
+
+    def apply_plugin_preset(self, track_id, preset_name):
+        """Applies a multi-parameter plugin preset block to a track and synchronizes it."""
+        params = PLUGIN_PRESETS.get(preset_name, PLUGIN_PRESETS.get("Warm Tube", {}))
+        applied = {}
+        for param_path, val in params.items():
+            parts = param_path.split("/")
+            plugin_id = parts[0]
+            param_name = "/".join(parts[1:])
+            self.sync_plugin_parameter(track_id, plugin_id, param_name, val)
+            applied[param_path] = val
+        return applied
+
+    def sync_session_manifest_to_bridge(self):
+        """Dispatches full session manifest to the Rust Omni-Plugin Host."""
+        if not os.path.exists(self.omni_socket_path):
+            return False
+        try:
+            payload = {
+                "tracks": {k: t.to_dict() for k, t in self.tracks.items()},
+                "active_daws": list(self.registered_daws.keys())
+            }
+            manifest_str = json.dumps(payload)
+            client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            client.settimeout(0.5)
+            client.connect(self.omni_socket_path)
+            cmd = f"SYNC_MANIFEST {manifest_str}\n"
+            client.sendall(cmd.encode("utf-8"))
+            resp = client.recv(1024).decode("utf-8")
+            client.close()
+            return True
+        except Exception as e:
+            logging.debug(f"Omni-Plugin manifest sync error: {e}")
+            return False
 
     def _send_omni_ipc(self, key, value):
         """Dispatches parameter change to the standalone Rust Omni-Plugin host if available."""

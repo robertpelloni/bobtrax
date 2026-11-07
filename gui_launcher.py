@@ -168,6 +168,7 @@ class OmniDashboard(tk.Tk):
         self.selected_stems = []
         self.selected_audio_file = None
         self.tray_icon = None
+        self.meter_history = [0.0] * 32
 
         # Build UI layout
         self.build_ui()
@@ -438,6 +439,10 @@ class OmniDashboard(tk.Tk):
         self.export_session_btn.pack(side="right", padx=2)
         ToolTip(self.export_session_btn, "Export current session state to Ardour (.ardour) or LMMS (.mmp) project files.")
 
+        self.sync_manifest_btn = ttk.Button(mem_ctrl_bar, text="Sync to Bridge", command=self.sync_manifest_to_bridge)
+        self.sync_manifest_btn.pack(side="right", padx=2)
+        ToolTip(self.sync_manifest_btn, "Push full session layout and track states to Omni-Plugin Bridge host.")
+
         self.mem_status_lbl = tk.Label(mem_ctrl_bar, text="", font=("Helvetica", 8, "italic"), fg="#555")
         self.mem_status_lbl.pack(side="right", padx=6)
 
@@ -462,6 +467,21 @@ class OmniDashboard(tk.Tk):
         self.plugin_track_combo = ttk.Combobox(plugin_sync_bar, values=["kick", "bass", "vocals", "synth", "master"], state="readonly", width=8)
         self.plugin_track_combo.set("bass")
         self.plugin_track_combo.pack(side="left", padx=4)
+
+        tk.Label(plugin_sync_bar, text="Preset:", font=("Helvetica", 8), bg="#282c34", fg="#abb2bf").pack(side="left")
+        self.plugin_preset_combo = ttk.Combobox(
+            plugin_sync_bar,
+            values=["Warm Tube", "Opto Comp", "Space Reverb", "Clean Limiter"],
+            state="readonly",
+            width=12
+        )
+        self.plugin_preset_combo.set("Warm Tube")
+        self.plugin_preset_combo.pack(side="left", padx=4)
+        ToolTip(self.plugin_preset_combo, "Quick multi-parameter preset macro for cross-DAW plugins.")
+
+        apply_preset_btn = ttk.Button(plugin_sync_bar, text="Apply Preset", command=self._apply_plugin_preset)
+        apply_preset_btn.pack(side="left", padx=2)
+        ToolTip(apply_preset_btn, "Broadcast preset parameter block to Omni-Plugin Bridge.")
 
         tk.Label(plugin_sync_bar, text="Cutoff:", font=("Helvetica", 8), bg="#282c34", fg="#abb2bf").pack(side="left")
         self.cutoff_scale = tk.Scale(
@@ -631,12 +651,18 @@ class OmniDashboard(tk.Tk):
         ).pack(side="left", padx=6)
 
         test_bridge_btn = ttk.Button(bridge_status_bar, text="Test Bridge IPC", command=self.test_omni_bridge)
-        test_bridge_btn.pack(side="right")
+        test_bridge_btn.pack(side="right", padx=2)
         ToolTip(test_bridge_btn, "Verify Rust omni_plugin_bridge cargo tests and IPC readiness.")
+
+        probe_dsp_btn = ttk.Button(bridge_status_bar, text="Probe DSP Block", command=self.probe_dsp_block)
+        probe_dsp_btn.pack(side="right", padx=2)
+        ToolTip(probe_dsp_btn, "Stream a simulated 512-frame audio buffer through the Omni-Plugin Host.")
 
         # DAW Launchers
         daw_btns_frame = tk.Frame(workstation_frame)
         daw_btns_frame.pack(fill="x", pady=2)
+
+        self.daw_badges = {}
 
         daw_metadata = [
             ("ardour", "Ardour", "Pro Audio Tracking & Mastering (GTK/Waf)"),
@@ -649,8 +675,15 @@ class OmniDashboard(tk.Tk):
             sub_card = tk.Frame(daw_btns_frame, relief="ridge", borderwidth=1, padx=6, pady=6)
             sub_card.pack(side="left", fill="both", expand=True, padx=3)
 
-            name_lbl = tk.Label(sub_card, text=name, font=("Helvetica", 10, "bold"))
-            name_lbl.pack(anchor="w")
+            top_row = tk.Frame(sub_card)
+            top_row.pack(fill="x")
+
+            name_lbl = tk.Label(top_row, text=name, font=("Helvetica", 10, "bold"))
+            name_lbl.pack(side="left")
+
+            badge = tk.Label(top_row, text="STANDBY", font=("Helvetica", 7, "bold"), fg="#888", bg="#222", padx=3)
+            badge.pack(side="right")
+            self.daw_badges[key] = badge
 
             desc_lbl = tk.Label(sub_card, text=desc, font=("Helvetica", 7), fg="#555", wraplength=170, justify="left")
             desc_lbl.pack(anchor="w", pady=(2, 6))
@@ -658,6 +691,7 @@ class OmniDashboard(tk.Tk):
             launch_btn = ttk.Button(sub_card, text=f"Launch {name}", command=lambda k=key: self.launch_daw_gui(k))
             launch_btn.pack(fill="x")
             ToolTip(launch_btn, f"Launch native {name} binary as an independent child process.")
+
 
         # -------------------------------------------------------------
         # 6. Section: Unified Real-Time System Log & VU Metering
@@ -708,36 +742,53 @@ class OmniDashboard(tk.Tk):
         self.main_canvas.itemconfig(self.canvas_window, width=event.width)
 
     def _draw_vu_meter(self, level_l, level_r):
-        """Draws stereo peak bars on the VU meter canvas (0.0 to 1.0 scale)."""
+        """Draws stereo peak bars and scrolling waveform history on the VU meter canvas."""
         self.vu_canvas.delete("all")
         w = 320
         h = 18
+
         # Background channels (Left top, Right bottom)
         self.vu_canvas.create_rectangle(0, 1, w, 7, fill="#222", outline="")
         self.vu_canvas.create_rectangle(0, 10, w, 16, fill="#222", outline="")
 
         def get_color(ratio):
             if ratio < 0.75:
-                return "#2e7d32"  # Green
+                return "#2e7d32"
             elif ratio < 0.90:
-                return "#ffd54f"  # Yellow
-            return "#f44336"      # Red
+                return "#ffd54f"
+            return "#f44336"
 
-        len_l = int(max(0.0, min(1.0, level_l)) * w)
-        len_r = int(max(0.0, min(1.0, level_r)) * w)
+        len_l = int(max(0.0, min(1.0, level_l)) * (w * 0.7))
+        len_r = int(max(0.0, min(1.0, level_r)) * (w * 0.7))
 
         if len_l > 0:
             self.vu_canvas.create_rectangle(0, 1, len_l, 7, fill=get_color(level_l), outline="")
         if len_r > 0:
             self.vu_canvas.create_rectangle(0, 10, len_r, 16, fill=get_color(level_r), outline="")
 
+        # Waveform envelope mini-history sparkline (rightmost 30% of canvas)
+        wave_start_x = int(w * 0.72)
+        wave_width = w - wave_start_x
+        num_points = len(self.meter_history)
+        step = wave_width / max(1, num_points - 1)
+
+        for i in range(num_points - 1):
+            y1 = int(h / 2 - (self.meter_history[i] * (h / 2 - 2)))
+            y2 = int(h / 2 - (self.meter_history[i + 1] * (h / 2 - 2)))
+            x1 = int(wave_start_x + i * step)
+            x2 = int(wave_start_x + (i + 1) * step)
+            self.vu_canvas.create_line(x1, y1, x2, y2, fill="#61dafb", width=1)
+
     def _update_meter_telemetry(self, peak_ratio):
-        """Updates live VU meter from incoming bridge telemetry."""
-        # Convert ratio (0.0 to 1.0) to stereo display
+        """Updates live VU meter and waveform history buffer from incoming bridge telemetry."""
         import math
-        db = 20.0 * math.log10(max(1e-4, peak_ratio))
+        clamped_ratio = max(0.0, min(1.0, peak_ratio))
+        self.meter_history.pop(0)
+        self.meter_history.append(clamped_ratio)
+
+        db = 20.0 * math.log10(max(1e-4, clamped_ratio))
         self.vu_text_lbl.config(text=f"L: {db:.1f} dB | R: {db:.1f} dB")
-        self._draw_vu_meter(peak_ratio, peak_ratio * 0.95)
+        self._draw_vu_meter(clamped_ratio, clamped_ratio * 0.95)
 
     def start_health_watchdog(self):
         """Asynchronous background watchdog evaluating system daemon health."""
@@ -937,6 +988,19 @@ class OmniDashboard(tk.Tk):
         self.plugin_sync_status.config(text=f"Sync: {track}/drive={v:.2f}")
         self.send_osc_direct(f"/track/{track}/plugin/omni_filter/drive", v)
 
+    def _apply_plugin_preset(self):
+        track = self.plugin_track_combo.get() or "bass"
+        preset = self.plugin_preset_combo.get() or "Warm Tube"
+        if session_memory:
+            mem = session_memory.SessionMemory()
+            if hasattr(mem, "apply_plugin_preset"):
+                applied = mem.apply_plugin_preset(track, preset)
+                for key, val in applied.items():
+                    self.send_osc_direct(f"/track/{track}/plugin/{key}", val)
+                self.plugin_sync_status.config(text=f"Preset: {preset} on {track}")
+                self.log(f"Omni-Plugin preset '{preset}' applied to track '{track}'.")
+                self.refresh_session_memory()
+
     def import_session_dialog(self):
         if not session_memory or not session_importer:
             self.log("Session importer or session memory module missing.")
@@ -994,6 +1058,18 @@ class OmniDashboard(tk.Tk):
             except Exception as e:
                 self.log(f"Export session error: {e}")
 
+    def sync_manifest_to_bridge(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        if hasattr(mem, "sync_session_manifest_to_bridge"):
+            ok = mem.sync_session_manifest_to_bridge()
+            if ok:
+                self.log("[Session Sync] Session manifest successfully synchronized to Omni-Plugin Bridge.")
+            else:
+                self.log("[Session Sync Note] Bridge socket idle or unreachable.")
+        self.refresh_session_memory()
+
     def save_session_snapshot(self):
         if not session_memory:
             return
@@ -1022,6 +1098,15 @@ class OmniDashboard(tk.Tk):
             summary = mem.get_summary()
             self.mem_status_lbl.config(text=f"{summary['total_tracks']} tracks | {len(summary['recent_actions'])} actions | {len(mem.checkpoints)} snaps")
             self._build_mixer_strips()
+
+            # Update active DAW badge indicators
+            if hasattr(mem, "get_active_daws"):
+                active_daws = mem.get_active_daws()
+                for key, badge in getattr(self, "daw_badges", {}).items():
+                    if key in active_daws:
+                        badge.config(text="ACTIVE", fg="#a6e22e")
+                    else:
+                        badge.config(text="STANDBY", fg="#888")
         except Exception as e:
             self.log(f"Session memory refresh error: {e}")
 
@@ -1430,6 +1515,21 @@ class OmniDashboard(tk.Tk):
     # -------------------------------------------------------------
     # Omni-Plugin Bridge & DAW Workstation Launchers
     # -------------------------------------------------------------
+    def probe_dsp_block(self):
+        self.log("Dispatching 512-frame DSP audio block probe to Omni-Plugin Host...")
+        def _probe():
+            try:
+                import bobui_bridge
+                bridge = bobui_bridge.BobUIBridge()
+                res = bridge.process_audio_buffer(frames=512, gain=0.8)
+                if res.get("status") == "ok":
+                    self.after(0, lambda: self.log(f"[Omni DSP Probe] Successfully processed {res.get('processed_frames')} frames at gain {res.get('gain')}."))
+                else:
+                    self.after(0, lambda: self.log(f"[Omni DSP Probe Note] Host socket response: {res.get('message', res.get('status'))}"))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Omni DSP Probe Error] {e}"))
+        threading.Thread(target=_probe, daemon=True).start()
+
     def test_omni_bridge(self):
         self.log("Testing Omni-Plugin Bridge IPC & Standalone Host...")
         def _test():
