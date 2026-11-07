@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.44] - 2026-03-30
+### Added
+- Cross-DAW Session Manifest Auto-Sync (`sync_session_manifest_to_bridge`) in `session_memory.py` pushing track architectures to the Omni-Plugin Host over IPC (`SYNC_MANIFEST`).
+- Interactive "Sync to Bridge" button in the Track Agent-Memory Hub section of `gui_launcher.py`.
+- Automated unit test coverage `test_session_manifest_bridge_sync` in `tests/test_ecosystem.py` (19/19 tests passing).
+
 ## [1.0.43] - 2026-03-30
 ### Added
 - Extended native C++ `BobUISessionBridge` (`saveCheckpoint`, `restoreCheckpoint`, `undoLastAction`) in `bobui_bridge/bobui_session_bridge.hpp` / `.cpp`.

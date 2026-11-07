@@ -283,6 +283,28 @@ class SessionMemory:
             applied[param_path] = val
         return applied
 
+    def sync_session_manifest_to_bridge(self):
+        """Dispatches full session manifest to the Rust Omni-Plugin Host."""
+        if not os.path.exists(self.omni_socket_path):
+            return False
+        try:
+            payload = {
+                "tracks": {k: t.to_dict() for k, t in self.tracks.items()},
+                "active_daws": list(self.registered_daws.keys())
+            }
+            manifest_str = json.dumps(payload)
+            client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            client.settimeout(0.5)
+            client.connect(self.omni_socket_path)
+            cmd = f"SYNC_MANIFEST {manifest_str}\n"
+            client.sendall(cmd.encode("utf-8"))
+            resp = client.recv(1024).decode("utf-8")
+            client.close()
+            return True
+        except Exception as e:
+            logging.debug(f"Omni-Plugin manifest sync error: {e}")
+            return False
+
     def _send_omni_ipc(self, key, value):
         """Dispatches parameter change to the standalone Rust Omni-Plugin host if available."""
         if not os.path.exists(self.omni_socket_path):

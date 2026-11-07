@@ -1,5 +1,12 @@
 # Handoff Document
 
+## Session Summary (1.0.44)
+- **Cross-DAW Session Manifest Auto-Sync:**
+  - Implemented `SYNC_MANIFEST` IPC socket command handling in Rust `omni_plugin_bridge`.
+  - Added `sync_session_manifest_to_bridge` in `session_memory.py`.
+  - Added "Sync to Bridge" button in OmniDashboard (`gui_launcher.py`).
+  - Added unit test validation in `tests/test_ecosystem.py` (19/19 tests passing).
+
 ## Session Summary (1.0.43)
 - **BobUI Checkpoints & Undo Support:**
   - Extended native C++ `BobUISessionBridge` with `saveCheckpoint`, `restoreCheckpoint`, and `undoLastAction`.

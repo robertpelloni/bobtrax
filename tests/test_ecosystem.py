@@ -204,6 +204,13 @@ class TestOmniPluginBridgeSync(unittest.TestCase):
             self.assertEqual(applied["omni_reverb/decay"], 3.2)
             self.assertEqual(mem.tracks["synth"].parameters["plugins/omni_reverb/decay"], 3.2)
 
+    def test_session_manifest_bridge_sync(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.omni_socket_path = "/tmp/nonexistent_manifest_sync.sock"
+            res = mem.sync_session_manifest_to_bridge()
+            self.assertFalse(res)
+
 
 class TestBobUIBridgeSync(unittest.TestCase):
     def test_bobui_bridge_parameter_sync(self):

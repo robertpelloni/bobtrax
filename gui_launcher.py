@@ -439,6 +439,10 @@ class OmniDashboard(tk.Tk):
         self.export_session_btn.pack(side="right", padx=2)
         ToolTip(self.export_session_btn, "Export current session state to Ardour (.ardour) or LMMS (.mmp) project files.")
 
+        self.sync_manifest_btn = ttk.Button(mem_ctrl_bar, text="Sync to Bridge", command=self.sync_manifest_to_bridge)
+        self.sync_manifest_btn.pack(side="right", padx=2)
+        ToolTip(self.sync_manifest_btn, "Push full session layout and track states to Omni-Plugin Bridge host.")
+
         self.mem_status_lbl = tk.Label(mem_ctrl_bar, text="", font=("Helvetica", 8, "italic"), fg="#555")
         self.mem_status_lbl.pack(side="right", padx=6)
 
@@ -1053,6 +1057,18 @@ class OmniDashboard(tk.Tk):
                 self.log(f"[Session Exporter] Session exported successfully to: {out_file}")
             except Exception as e:
                 self.log(f"Export session error: {e}")
+
+    def sync_manifest_to_bridge(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        if hasattr(mem, "sync_session_manifest_to_bridge"):
+            ok = mem.sync_session_manifest_to_bridge()
+            if ok:
+                self.log("[Session Sync] Session manifest successfully synchronized to Omni-Plugin Bridge.")
+            else:
+                self.log("[Session Sync Note] Bridge socket idle or unreachable.")
+        self.refresh_session_memory()
 
     def save_session_snapshot(self):
         if not session_memory:

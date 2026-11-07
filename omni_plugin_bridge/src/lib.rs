@@ -117,6 +117,11 @@ impl OmniBridge {
                                     let resp = format!("{{\"status\": \"ok\", \"processed_frames\": {}, \"gain\": {}}}\n", frames, gain);
                                     let _ = stream.write_all(resp.as_bytes());
                                     continue;
+                                } else if trimmed.starts_with("SYNC_MANIFEST ") {
+                                    // Acknowledge manifest reception
+                                    let resp = "{\"status\": \"ok\", \"action\": \"manifest_synced\"}\n";
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
                                 } else if trimmed == "GET_ALL" {
                                     let map = params_ref.lock().unwrap();
                                     let mut entries = Vec::new();
