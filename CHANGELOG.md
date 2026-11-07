@@ -14,6 +14,11 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.42] - 2026-03-30
+### Added
+- Comprehensive BobUI Architecture & Cross-DAW Integration Specification in `bobui/BOBUI_INTEGRATION.md` detailing shared audio buffers, preset repository, asset caching, and member DAW integration points.
+- Linked integration documentation in `Manual.md` and verified documentation integrity via `generate_docs.py`.
+
 ## [1.0.41] - 2026-03-30
 ### Added
 - Out-of-process audio DSP buffer streaming protocol (`PROCESS_AUDIO <frames> <gain>`) in Rust `omni_plugin_bridge`.

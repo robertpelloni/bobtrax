@@ -58,6 +58,7 @@ The Omni-Dashboard is arranged hierarchically by workflow and utility value on a
 - **Start All Servers / Stop All Servers:** One-click controls to manage all background services simultaneously.
 
 ### 5. Native DAWs & Omni-Plugin Bridge
+- **BobUI Architecture & Integration:** Detailed in `bobui/BOBUI_INTEGRATION.md`, outlining the core QtBase widget runtime, cross-DAW asset sharing, and POSIX C++ adapters.
 - **Omni-Plugin Bridge:** Rust-based IPC wrapper (`omni_plugin_bridge`) allowing shared VST/LV2 plugins across LMMS and Ardour. Click **Test Bridge IPC** to verify the Rust test suite.
 - **Native DAW Launchers:** Dedicated cards with descriptions and launch buttons for:
   - **Ardour:** Professional multitrack recording and mastering.
