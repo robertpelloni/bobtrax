@@ -14,6 +14,13 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.41] - 2026-03-30
+### Added
+- Out-of-process audio DSP buffer streaming protocol (`PROCESS_AUDIO <frames> <gain>`) in Rust `omni_plugin_bridge`.
+- Python buffer streaming method `process_audio_buffer` in `bobui_bridge.py`.
+- Interactive "Probe DSP Block" test button in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_audio_buffer_processing_fallback` in `tests/test_ecosystem.py` (17/17 tests passing).
+
 ## [1.0.40] - 2026-03-30
 ### Added
 - Multi-DAW Heartbeat Registration and Active Tracking (`register_daw`, `get_active_daws`) in `session_memory.py`.

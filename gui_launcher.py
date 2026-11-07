@@ -647,8 +647,12 @@ class OmniDashboard(tk.Tk):
         ).pack(side="left", padx=6)
 
         test_bridge_btn = ttk.Button(bridge_status_bar, text="Test Bridge IPC", command=self.test_omni_bridge)
-        test_bridge_btn.pack(side="right")
+        test_bridge_btn.pack(side="right", padx=2)
         ToolTip(test_bridge_btn, "Verify Rust omni_plugin_bridge cargo tests and IPC readiness.")
+
+        probe_dsp_btn = ttk.Button(bridge_status_bar, text="Probe DSP Block", command=self.probe_dsp_block)
+        probe_dsp_btn.pack(side="right", padx=2)
+        ToolTip(probe_dsp_btn, "Stream a simulated 512-frame audio buffer through the Omni-Plugin Host.")
 
         # DAW Launchers
         daw_btns_frame = tk.Frame(workstation_frame)
@@ -1495,6 +1499,21 @@ class OmniDashboard(tk.Tk):
     # -------------------------------------------------------------
     # Omni-Plugin Bridge & DAW Workstation Launchers
     # -------------------------------------------------------------
+    def probe_dsp_block(self):
+        self.log("Dispatching 512-frame DSP audio block probe to Omni-Plugin Host...")
+        def _probe():
+            try:
+                import bobui_bridge
+                bridge = bobui_bridge.BobUIBridge()
+                res = bridge.process_audio_buffer(frames=512, gain=0.8)
+                if res.get("status") == "ok":
+                    self.after(0, lambda: self.log(f"[Omni DSP Probe] Successfully processed {res.get('processed_frames')} frames at gain {res.get('gain')}."))
+                else:
+                    self.after(0, lambda: self.log(f"[Omni DSP Probe Note] Host socket response: {res.get('message', res.get('status'))}"))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Omni DSP Probe Error] {e}"))
+        threading.Thread(target=_probe, daemon=True).start()
+
     def test_omni_bridge(self):
         self.log("Testing Omni-Plugin Bridge IPC & Standalone Host...")
         def _test():

@@ -25,6 +25,23 @@ class BobUIBridge:
     def is_host_alive(self):
         return verify_omni_connection(self.socket_path)
 
+    def process_audio_buffer(self, frames=512, gain=1.0):
+        """Sends an audio processing block to the standalone Omni-Plugin Host."""
+        if not os.path.exists(self.socket_path):
+            return {"status": "error", "message": "Socket not found", "frames": frames, "gain": gain}
+
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(1.0)
+                client.connect(self.socket_path)
+                cmd = f"PROCESS_AUDIO {frames} {gain}\n"
+                client.sendall(cmd.encode("utf-8"))
+                resp = client.recv(1024).decode("utf-8").strip()
+                data = json.loads(resp)
+                return data
+        except Exception as e:
+            return {"status": "error", "message": str(e), "frames": frames, "gain": gain}
+
     def set_parameter(self, track_id, plugin_id, param_name, value):
         key = f"{track_id}:{plugin_id}:{param_name}"
         if not os.path.exists(self.socket_path):

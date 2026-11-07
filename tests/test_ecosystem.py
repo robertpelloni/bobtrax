@@ -218,6 +218,13 @@ class TestBobUIBridgeSync(unittest.TestCase):
         params = bridge.get_all_parameters()
         self.assertEqual(params, {})
 
+    def test_audio_buffer_processing_fallback(self):
+        bridge = bobui_bridge.BobUIBridge(socket_path="/tmp/nonexistent_dsp.sock")
+        res = bridge.process_audio_buffer(frames=256, gain=0.5)
+        self.assertEqual(res["status"], "error")
+        self.assertEqual(res["frames"], 256)
+        self.assertEqual(res["gain"], 0.5)
+
 
 class TestBobUISessionManagement(unittest.TestCase):
     def test_bobui_session_export_and_import(self):
