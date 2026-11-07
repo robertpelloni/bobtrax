@@ -112,8 +112,29 @@ class SessionMemory:
         self.checkpoints = {}
         self.omni_socket_path = DEFAULT_OMNI_SOCKET
         self.omni_synced_params = {}
+        self.registered_daws = {}
         self._load()
         self._initialized = True
+
+    def register_daw(self, daw_name, port=None):
+        """Records active DAW heartbeat and communication endpoint."""
+        name = daw_name.lower()
+        self.registered_daws[name] = {
+            "name": name,
+            "port": port,
+            "last_seen": time.time(),
+            "status": "connected"
+        }
+        self._save()
+        return self.registered_daws[name]
+
+    def get_active_daws(self, timeout=60.0):
+        """Returns map of DAWs active within the timeout window."""
+        now = time.time()
+        return {
+            k: v for k, v in self.registered_daws.items()
+            if (now - v.get("last_seen", 0)) <= timeout
+        }
 
     def infer_role(self, track_name):
         name = track_name.lower()

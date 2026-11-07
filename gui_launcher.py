@@ -654,6 +654,8 @@ class OmniDashboard(tk.Tk):
         daw_btns_frame = tk.Frame(workstation_frame)
         daw_btns_frame.pack(fill="x", pady=2)
 
+        self.daw_badges = {}
+
         daw_metadata = [
             ("ardour", "Ardour", "Pro Audio Tracking & Mastering (GTK/Waf)"),
             ("lmms", "LMMS", "Beatmaking & Synth Sequencer (Qt/CMake)"),
@@ -665,8 +667,15 @@ class OmniDashboard(tk.Tk):
             sub_card = tk.Frame(daw_btns_frame, relief="ridge", borderwidth=1, padx=6, pady=6)
             sub_card.pack(side="left", fill="both", expand=True, padx=3)
 
-            name_lbl = tk.Label(sub_card, text=name, font=("Helvetica", 10, "bold"))
-            name_lbl.pack(anchor="w")
+            top_row = tk.Frame(sub_card)
+            top_row.pack(fill="x")
+
+            name_lbl = tk.Label(top_row, text=name, font=("Helvetica", 10, "bold"))
+            name_lbl.pack(side="left")
+
+            badge = tk.Label(top_row, text="STANDBY", font=("Helvetica", 7, "bold"), fg="#888", bg="#222", padx=3)
+            badge.pack(side="right")
+            self.daw_badges[key] = badge
 
             desc_lbl = tk.Label(sub_card, text=desc, font=("Helvetica", 7), fg="#555", wraplength=170, justify="left")
             desc_lbl.pack(anchor="w", pady=(2, 6))
@@ -674,6 +683,7 @@ class OmniDashboard(tk.Tk):
             launch_btn = ttk.Button(sub_card, text=f"Launch {name}", command=lambda k=key: self.launch_daw_gui(k))
             launch_btn.pack(fill="x")
             ToolTip(launch_btn, f"Launch native {name} binary as an independent child process.")
+
 
         # -------------------------------------------------------------
         # 6. Section: Unified Real-Time System Log & VU Metering
@@ -1068,6 +1078,15 @@ class OmniDashboard(tk.Tk):
             summary = mem.get_summary()
             self.mem_status_lbl.config(text=f"{summary['total_tracks']} tracks | {len(summary['recent_actions'])} actions | {len(mem.checkpoints)} snaps")
             self._build_mixer_strips()
+
+            # Update active DAW badge indicators
+            if hasattr(mem, "get_active_daws"):
+                active_daws = mem.get_active_daws()
+                for key, badge in getattr(self, "daw_badges", {}).items():
+                    if key in active_daws:
+                        badge.config(text="ACTIVE", fg="#a6e22e")
+                    else:
+                        badge.config(text="STANDBY", fg="#888")
         except Exception as e:
             self.log(f"Session memory refresh error: {e}")
 

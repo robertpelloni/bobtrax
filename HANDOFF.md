@@ -1,5 +1,11 @@
 # Handoff Document
 
+## Session Summary (1.0.40)
+- **Multi-DAW Active Tracking & Dashboard Badges:**
+  - Added active workstation heartbeat tracking and registration (`register_daw`, `get_active_daws`) in `session_memory.py`.
+  - Added live ACTIVE/STANDBY status badges to OmniDashboard (`gui_launcher.py`) for Ardour, LMMS, MusE, and Zrythm.
+  - Added unit test validation in `tests/test_ecosystem.py` (16/16 tests passing).
+
 ## Session Summary (1.0.39)
 - **BobUI Session Management Bridge:**
   - Implemented `bobui_bridge/bobui_session_bridge.hpp` and `bobui_bridge/bobui_session_bridge.cpp` for native C++ session interchange with Ardour and LMMS.

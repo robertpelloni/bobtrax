@@ -244,6 +244,23 @@ class TestBobUISessionManagement(unittest.TestCase):
             self.assertTrue(imported_lmms["bass"]["muted"])
 
 
+class TestDawRegistration(unittest.TestCase):
+    def test_daw_heartbeat_and_active_filtering(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            reg = mem.register_daw("ardour", 3819)
+            self.assertEqual(reg["name"], "ardour")
+            self.assertEqual(reg["status"], "connected")
+
+            active = mem.get_active_daws(timeout=10.0)
+            self.assertIn("ardour", active)
+
+            # Test timeout filtering
+            mem.registered_daws["ardour"]["last_seen"] = 1000.0
+            expired = mem.get_active_daws(timeout=10.0)
+            self.assertNotIn("ardour", expired)
+
+
 class TestWaveformTelemetry(unittest.TestCase):
     def test_meter_telemetry_waveform(self):
         # Verify emit_meter_packet executes safely without crashing

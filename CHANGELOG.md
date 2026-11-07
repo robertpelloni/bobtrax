@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.40] - 2026-03-30
+### Added
+- Multi-DAW Heartbeat Registration and Active Tracking (`register_daw`, `get_active_daws`) in `session_memory.py`.
+- Dynamic DAW status indicators (ACTIVE / STANDBY) for Ardour, LMMS, MusE, and Zrythm inside OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `TestDawRegistration` in `tests/test_ecosystem.py` (16/16 tests passing).
+
 ## [1.0.39] - 2026-03-30
 ### Added
 - Native C++ session management bridge (`bobui_bridge/bobui_session_bridge.hpp`, `bobui_bridge/bobui_session_bridge.cpp`) supporting Ardour and LMMS XML import/export.
