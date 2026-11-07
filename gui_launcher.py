@@ -447,6 +447,11 @@ class OmniDashboard(tk.Tk):
         self.sync_manifest_btn.pack(side="right", padx=2)
         ToolTip(self.sync_manifest_btn, "Push full session layout and track states to Omni-Plugin Bridge host.")
 
+        self.auto_save_var = tk.BooleanVar(value=True)
+        auto_save_chk = ttk.Checkbutton(mem_ctrl_bar, text="Auto-Save", variable=self.auto_save_var, command=self._toggle_auto_save)
+        auto_save_chk.pack(side="right", padx=4)
+        ToolTip(auto_save_chk, "Toggle periodic background session auto-save and bridge sync daemon.")
+
         self.mem_status_lbl = tk.Label(mem_ctrl_bar, text="", font=("Helvetica", 8, "italic"), fg="#555")
         self.mem_status_lbl.pack(side="right", padx=6)
 
@@ -812,6 +817,17 @@ class OmniDashboard(tk.Tk):
                     pass
                 time.sleep(6)
         threading.Thread(target=_watch, daemon=True).start()
+
+    def _toggle_auto_save(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        if self.auto_save_var.get():
+            mem.enable_auto_save(15.0)
+            self.log("[Session Memory] Auto-save daemon ENABLED (interval: 15s).")
+        else:
+            mem.disable_auto_save()
+            self.log("[Session Memory] Auto-save daemon DISABLED.")
 
     def _run_macro(self, macro_cmd):
         self.muse_prompt.delete(0, tk.END)
@@ -1232,6 +1248,11 @@ class OmniDashboard(tk.Tk):
     def quit_application(self):
         self.log("Shutting down Bobtrax Omni-Dashboard and terminating all servers...")
         self._running = False
+        if session_memory:
+            try:
+                session_memory.SessionMemory().disable_auto_save()
+            except Exception:
+                pass
         self.stop_all_servers()
         if self.tray_icon:
             try:

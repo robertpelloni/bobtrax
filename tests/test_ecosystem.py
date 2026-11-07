@@ -100,6 +100,13 @@ class TestSessionMemory(unittest.TestCase):
         self.assertIn("vocals", details["tracks"])
         self.assertGreaterEqual(details["track_count"], 1)
 
+    def test_session_auto_save_lifecycle(self):
+        self.assertFalse(self.mem.is_auto_save_active())
+        self.mem.enable_auto_save(interval_seconds=0.1)
+        self.assertTrue(self.mem.is_auto_save_active())
+        self.mem.disable_auto_save()
+        self.assertFalse(self.mem.is_auto_save_active())
+
 
 class TestAiMixingAssistant(unittest.TestCase):
     def test_acoustic_dsp_rules(self):

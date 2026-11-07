@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.46] - 2026-03-30
+### Added
+- Background Session Auto-Save Daemon (`enable_auto_save`, `disable_auto_save`) in `session_memory.py` periodically persisting state and broadcasting manifests.
+- Auto-Save toggle checkbox and clean shutdown handling in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_session_auto_save_lifecycle` in `tests/test_ecosystem.py` (21/21 tests passing).
+
 ## [1.0.45] - 2026-03-30
 ### Added
 - Checkpoint metadata inspector `get_checkpoint_details` in `session_memory.py`.

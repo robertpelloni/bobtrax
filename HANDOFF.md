@@ -1,5 +1,11 @@
 # Handoff Document
 
+## Session Summary (1.0.46)
+- **Session Auto-Save Daemon & Resilience:**
+  - Implemented background periodic state auto-saver (`enable_auto_save`, `disable_auto_save`) in `session_memory.py`.
+  - Added Auto-Save toggle checkbox and clean thread shutdown hooks in OmniDashboard (`gui_launcher.py`).
+  - Added unit test validation in `tests/test_ecosystem.py` (21/21 tests passing).
+
 ## Session Summary (1.0.45)
 - **Session Checkpoint Browser & Details Inspector:**
   - Implemented `get_checkpoint_details` in `session_memory.py`.

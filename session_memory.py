@@ -113,8 +113,39 @@ class SessionMemory:
         self.omni_socket_path = DEFAULT_OMNI_SOCKET
         self.omni_synced_params = {}
         self.registered_daws = {}
+        self._auto_save_thread = None
+        self._auto_save_running = False
         self._load()
         self._initialized = True
+
+    def enable_auto_save(self, interval_seconds=15.0):
+        """Starts background auto-save daemon periodically persisting session memory and syncing to bridge."""
+        if self._auto_save_running:
+            return
+        self._auto_save_running = True
+
+        def _worker():
+            while self._auto_save_running:
+                time.sleep(interval_seconds)
+                if not self._auto_save_running:
+                    break
+                try:
+                    self._save()
+                    self.sync_session_manifest_to_bridge()
+                except Exception as e:
+                    logging.debug(f"Auto-save worker error: {e}")
+
+        self._auto_save_thread = threading.Thread(target=_worker, daemon=True)
+        self._auto_save_thread.start()
+
+    def disable_auto_save(self):
+        """Stops background auto-save daemon."""
+        self._auto_save_running = False
+        if self._auto_save_thread:
+            self._auto_save_thread = None
+
+    def is_auto_save_active(self):
+        return self._auto_save_running
 
     def register_daw(self, daw_name, port=None):
         """Records active DAW heartbeat and communication endpoint."""
