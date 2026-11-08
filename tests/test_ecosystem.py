@@ -348,6 +348,17 @@ class TestBobUISessionManagement(unittest.TestCase):
         self.assertIn("osc_sync", res)
         self.assertEqual(res["socket_sync"]["status"], "error")
 
+    def test_sync_session_across_daws(self):
+        tracks = {
+            "kick": {"fader": 0.0, "muted": False, "soloed": False},
+            "bass": {"fader": -4.0, "muted": True, "soloed": False}
+        }
+        res = bobui_bridge.sync_session_across_daws(target_daws=["ardour", "lmms"], tracks=tracks)
+        self.assertIn("ardour", res)
+        self.assertIn("lmms", res)
+        self.assertEqual(res["ardour"]["status"], "synced")
+        self.assertEqual(res["ardour"]["tracks_dispatched"], 2)
+
 
 class TestDawRegistration(unittest.TestCase):
     def test_daw_heartbeat_and_active_filtering(self):

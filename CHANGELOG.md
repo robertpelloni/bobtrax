@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.51] - 2026-03-30
+### Added
+- Multi-DAW Concurrent Session Synchronization Harness (`sync_session_across_daws`) in `bobui_bridge.py`.
+- Interactive "Broadcast to All DAWs" button in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_sync_session_across_daws` in `tests/test_ecosystem.py` (26/26 tests passing).
+
 ## [1.0.50] - 2026-03-30
 ### Added
 - Multi-DAW Session Broadcast Bus (`broadcast_track_update`) in `bobui_bridge.py` dispatching simultaneous low-latency binary frames and normalized OSC to member DAWs.

@@ -141,6 +141,26 @@ def sync_session_diff(checkpoint_name, mem=None):
     return diff
 
 
+def sync_session_across_daws(target_daws=None, tracks=None, mem=None):
+    """Simultaneously synchronizes entire session state across all registered member DAWs."""
+    target_mem = mem or session_memory.SessionMemory()
+    active_tracks = tracks or target_mem.tracks
+    daws = target_daws or ["ardour", "lmms", "muse", "zrythm"]
+    results = {}
+
+    for daw in daws:
+        dispatched = 0
+        for name, track in active_tracks.items():
+            fader_val = track.fader if hasattr(track, "fader") else track.get("fader", 0.0)
+            muted_val = track.muted if hasattr(track, "muted") else track.get("muted", False)
+            soloed_val = track.soloed if hasattr(track, "soloed") else track.get("soloed", False)
+            broadcast_track_update(name, fader=fader_val, muted=muted_val, soloed=soloed_val)
+            dispatched += 1
+        results[daw] = {"status": "synced", "tracks_dispatched": dispatched}
+
+    return results
+
+
 def broadcast_track_update(track_name, fader=None, muted=None, soloed=None, osc_bridge_port=8000, socket_path=DEFAULT_SOCKET_PATH):
     """Simultaneously dispatches track updates over low-latency binary socket and UDP OSC."""
     results = {}

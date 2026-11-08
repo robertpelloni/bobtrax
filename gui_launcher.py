@@ -455,6 +455,10 @@ class OmniDashboard(tk.Tk):
         self.diff_sync_btn.pack(side="right", padx=2)
         ToolTip(self.diff_sync_btn, "Compute minimal state diff against baseline checkpoint and broadcast delta.")
 
+        self.multi_daw_sync_btn = ttk.Button(mem_ctrl_bar, text="Broadcast to All DAWs", command=self.broadcast_session_to_all_daws)
+        self.multi_daw_sync_btn.pack(side="right", padx=2)
+        ToolTip(self.multi_daw_sync_btn, "Simultaneously push entire session state over binary socket & OSC to all active DAWs.")
+
         self.auto_save_var = tk.BooleanVar(value=True)
         auto_save_chk = ttk.Checkbutton(mem_ctrl_bar, text="Auto-Save", variable=self.auto_save_var, command=self._toggle_auto_save)
         auto_save_chk.pack(side="right", padx=4)
@@ -1097,6 +1101,19 @@ class OmniDashboard(tk.Tk):
                 self.log(f"[Session Exporter] Session exported successfully to: {out_file}")
             except Exception as e:
                 self.log(f"Export session error: {e}")
+
+    def broadcast_session_to_all_daws(self):
+        self.log("[Multi-DAW Sync] Broadcasting active session state across all member DAWs (Ardour, LMMS, MusE, Zrythm)...")
+        def _sync():
+            try:
+                import bobui_bridge
+                res = bobui_bridge.sync_session_across_daws()
+                for daw, info in res.items():
+                    self.after(0, lambda d=daw, n=info.get('tracks_dispatched'): self.log(f"  • {d.upper()}: Synced {n} tracks."))
+                self.after(0, lambda: self.log("[Multi-DAW Sync] Broadcast complete across ecosystem."))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Multi-DAW Sync Error] {e}"))
+        threading.Thread(target=_sync, daemon=True).start()
 
     def sync_diff_to_baseline(self):
         if not session_memory:
