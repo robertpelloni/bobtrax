@@ -369,6 +369,21 @@ class TestBobUISessionManagement(unittest.TestCase):
             self.assertTrue(os.path.exists(res["exported_file"]))
             self.assertIn(res["checkpoint"], mem.list_checkpoints())
 
+    def test_transition_rollback_on_failure(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.set_fader("vocals", 1.0)
+            mem.save_checkpoint("pre_fail_cp")
+
+            # Simulate transition pointing to nonexistent target
+            failed_transition = {
+                "checkpoint": "pre_fail_cp",
+                "exported_file": "/tmp/nonexistent_dummy_file_for_rollback_test.ardour"
+            }
+            rollback_res = bobui_bridge.verify_and_rollback_transition(failed_transition, mem=mem)
+            self.assertEqual(rollback_res["status"], "rolled_back")
+            self.assertEqual(rollback_res["restored_checkpoint"], "pre_fail_cp")
+
 
 class TestDawRegistration(unittest.TestCase):
     def test_daw_heartbeat_and_active_filtering(self):

@@ -172,6 +172,29 @@ def transition_session(from_daw, to_daw, target_file_path=None, mem=None):
     }
 
 
+def verify_and_rollback_transition(transition_result, mem=None):
+    """Verifies transition file existence and size, rolling back state if checks fail."""
+    target_mem = mem or session_memory.SessionMemory()
+    exported_file = transition_result.get("exported_file")
+    checkpoint = transition_result.get("checkpoint")
+
+    # Check if target exported file exists and has content
+    if not exported_file or not os.path.exists(exported_file) or os.path.getsize(exported_file) == 0:
+        if checkpoint:
+            target_mem.restore_checkpoint(checkpoint)
+        return {
+            "status": "rolled_back",
+            "reason": "Exported file missing or empty",
+            "restored_checkpoint": checkpoint
+        }
+
+    return {
+        "status": "verified",
+        "exported_file": exported_file,
+        "bytes": os.path.getsize(exported_file)
+    }
+
+
 def sync_session_across_daws(target_daws=None, tracks=None, mem=None):
     """Simultaneously synchronizes entire session state across all registered member DAWs."""
     target_mem = mem or session_memory.SessionMemory()

@@ -1122,12 +1122,25 @@ class OmniDashboard(tk.Tk):
         tgt_combo.set("lmms")
         tgt_combo.pack(padx=16, pady=2)
 
+        safe_var = tk.BooleanVar(value=True)
+        safe_chk = ttk.Checkbutton(dialog, text="Rollback on Verification Failure", variable=safe_var)
+        safe_chk.pack(anchor="w", padx=16, pady=4)
+
         def _do_transition():
             src = src_combo.get()
             tgt = tgt_combo.get()
+            do_safe = safe_var.get()
             try:
                 import bobui_bridge
                 res = bobui_bridge.transition_session(src, tgt)
+                if do_safe:
+                    verification = bobui_bridge.verify_and_rollback_transition(res)
+                    if verification.get("status") == "rolled_back":
+                        self.log(f"[Transition Warning] Verification failed: {verification.get('reason')}. Automatically rolled back.")
+                        self.refresh_session_memory()
+                        dialog.destroy()
+                        return
+
                 self.log(f"[Session Transition] Successfully transitioned from {src.upper()} to {tgt.upper()}.")
                 self.log(f"  • Snapshot saved: {res.get('checkpoint')}")
                 self.log(f"  • Exported: {res.get('exported_file')}")

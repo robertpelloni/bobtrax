@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.53] - 2026-03-30
+### Added
+- Session Transition Verification & Auto-Rollback (`verify_and_rollback_transition`) in `bobui_bridge.py`.
+- Safe transition checkbox option in OmniDashboard (`gui_launcher.py`) providing automatic snapshot restoration on transfer errors.
+- Automated unit test coverage `test_transition_rollback_on_failure` in `tests/test_ecosystem.py` (28/28 tests passing).
+
 ## [1.0.52] - 2026-03-30
 ### Added
 - Cross-DAW Session Transition State Machine (`transition_session`) in `bobui_bridge.py` managing state snapshots, foreign file synthesis, and target DAW live synchronization.
