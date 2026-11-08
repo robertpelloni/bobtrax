@@ -691,6 +691,10 @@ class OmniDashboard(tk.Tk):
         probe_dsp_btn.pack(side="right", padx=2)
         ToolTip(probe_dsp_btn, "Stream a simulated 512-frame audio buffer through the Omni-Plugin Host.")
 
+        stream_dsp_btn = ttk.Button(bridge_status_bar, text="Stream Headless Chunk", command=self.stream_headless_audio_block)
+        stream_dsp_btn.pack(side="right", padx=2)
+        ToolTip(stream_dsp_btn, "Execute real-time headless buffer streaming with latency & peak level metrics.")
+
         compat_btn = ttk.Button(bridge_status_bar, text="Check Plugin Compat", command=self.check_plugin_compat)
         compat_btn.pack(side="right", padx=2)
         ToolTip(compat_btn, "Query format compatibility across Ardour, LMMS, MusE, and Zrythm.")
@@ -1813,6 +1817,24 @@ class OmniDashboard(tk.Tk):
             except Exception as e:
                 self.after(0, lambda: self.log(f"[Omni DSP Probe Error] {e}"))
         threading.Thread(target=_probe, daemon=True).start()
+
+    def stream_headless_audio_block(self):
+        self.log("Streaming real-time headless audio block to Omni-Bridge (48kHz, 512 frames, f32le)...")
+        def _stream():
+            try:
+                import bobui_bridge
+                bridge = bobui_bridge.BobUIBridge()
+                res = bridge.stream_headless_audio_chunk(sample_rate=48000, frames=512, format_type="f32le")
+                if res.get("status") in ["ok", "simulated"]:
+                    self.after(0, lambda: self.log(
+                        f"[Headless Stream {res.get('status').upper()}] Frames: {res.get('frames')} | "
+                        f"SR: {res.get('sample_rate')}Hz | Peak: {res.get('peak')} | Latency: {res.get('latency_ms')}ms"
+                    ))
+                else:
+                    self.after(0, lambda: self.log(f"[Headless Stream Note] Response: {res.get('message', res.get('status'))}"))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Headless Stream Error] {e}"))
+        threading.Thread(target=_stream, daemon=True).start()
 
     def test_omni_bridge(self):
         self.log("Testing Omni-Plugin Bridge IPC & Standalone Host...")

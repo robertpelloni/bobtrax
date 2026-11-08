@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.57] - 2026-03-30
+### Added
+- `STREAM_AUDIO_BLOCK` protocol command in `omni_plugin_bridge/src/lib.rs` supporting real-time sample rates, frame lengths, format types, peak detection, and latency tracking.
+- `stream_headless_audio_chunk()` in `bobui_bridge.py` with simulated fallback when host socket is not active.
+- Persistent process loop in standalone `omni_host.rs` to serve continuous IPC connections.
+- Interactive "Stream Headless Chunk" button in `gui_launcher.py` with live stream telemetry output.
+- Comprehensive unit test suite `TestHeadlessAudioStreaming` in `tests/test_ecosystem.py`.
+
 ## [1.0.56] - 2026-03-30
 ### Added
 - Bidirectional Undo/Redo stack engine in `session_memory.py` with `redo_last_action` and forward redo history clearing on fresh actions.

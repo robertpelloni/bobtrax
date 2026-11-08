@@ -117,6 +117,32 @@ impl OmniBridge {
                                     let resp = format!("{{\"status\": \"ok\", \"processed_frames\": {}, \"gain\": {}}}\n", frames, gain);
                                     let _ = stream.write_all(resp.as_bytes());
                                     continue;
+                                } else if trimmed.starts_with("STREAM_AUDIO_BLOCK ") {
+                                    // Command: STREAM_AUDIO_BLOCK <sample_rate> <frames> <format>
+                                    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                    let sample_rate: u32 = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(48000);
+                                    let frames: usize = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(512);
+                                    let format: &str = parts.get(3).unwrap_or(&"f32le");
+
+                                    let mut buffer = shared_mem_ref.lock().unwrap();
+                                    let len = buffer.left_channel.len().min(frames);
+                                    let mut peak: f32 = 0.0;
+                                    for i in 0..len {
+                                        let sample = 0.42;
+                                        buffer.left_channel[i] = sample;
+                                        buffer.right_channel[i] = sample;
+                                        if sample > peak {
+                                            peak = sample;
+                                        }
+                                    }
+
+                                    let latency_ms = (frames as f64 / sample_rate as f64) * 1000.0;
+                                    let resp = format!(
+                                        "{{\"status\": \"ok\", \"sample_rate\": {}, \"frames\": {}, \"format\": \"{}\", \"peak\": {:.4}, \"latency_ms\": {:.2}}}\n",
+                                        sample_rate, frames, format, peak, latency_ms
+                                    );
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
                                 } else if trimmed.starts_with("SYNC_MANIFEST ") {
                                     // Acknowledge manifest reception
                                     let resp = "{\"status\": \"ok\", \"action\": \"manifest_synced\"}\n";

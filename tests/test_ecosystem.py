@@ -531,5 +531,47 @@ class TestUndoRedoStack(unittest.TestCase):
             self.assertEqual(mem.tracks["snare"].fader, -2.0)
 
 
+class TestHeadlessAudioStreaming(unittest.TestCase):
+    def test_stream_headless_chunk_simulation_and_metrics(self):
+        import bobui_bridge
+        bridge = bobui_bridge.BobUIBridge(socket_path="/tmp/non_existent_stream_socket.sock")
+        res = bridge.stream_headless_audio_chunk(sample_rate=48000, frames=512, format_type="f32le")
+        self.assertEqual(res["status"], "simulated")
+        self.assertEqual(res["sample_rate"], 48000)
+        self.assertEqual(res["frames"], 512)
+        self.assertAlmostEqual(res["latency_ms"], 10.67, delta=0.1)
+        self.assertGreater(res["peak"], 0.0)
+
+    def test_stream_headless_chunk_with_live_host(self):
+        # Test against live IPC socket server
+        import subprocess
+        import time
+        import omni_plugin_bridge
+        import bobui_bridge
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sock_path = os.path.join(tmpdir, "probe_stream.sock")
+            # Spawn Rust omni_host binary
+            proc = subprocess.Popen(
+                ["cargo", "run", "--manifest-path", "omni_plugin_bridge/Cargo.toml", "--bin", "omni_host", "--", sock_path, "TestSynth.so"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            try:
+                # Wait briefly for socket creation
+                for _ in range(15):
+                    if os.path.exists(sock_path):
+                        break
+                    time.sleep(0.1)
+
+                bridge = bobui_bridge.BobUIBridge(socket_path=sock_path)
+                res = bridge.stream_headless_audio_chunk(sample_rate=48000, frames=256, format_type="f32le")
+                self.assertEqual(res["status"], "ok")
+                self.assertEqual(res["frames"], 256)
+                self.assertAlmostEqual(res["latency_ms"], 5.33, delta=0.1)
+            finally:
+                proc.terminate()
+                proc.wait()
+
+
 if __name__ == "__main__":
     unittest.main()

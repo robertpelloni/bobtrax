@@ -66,6 +66,36 @@ class BobUIBridge:
         except Exception as e:
             return {"status": "error", "message": str(e), "frames": frames, "gain": gain}
 
+    def stream_headless_audio_chunk(self, sample_rate=48000, frames=512, format_type="f32le"):
+        """Streams a headless audio buffer to the Omni-Plugin Bridge with latency and peak analysis."""
+        if not os.path.exists(self.socket_path):
+            return {
+                "status": "simulated",
+                "sample_rate": sample_rate,
+                "frames": frames,
+                "format": format_type,
+                "peak": 0.42,
+                "latency_ms": round((frames / sample_rate) * 1000.0, 2),
+                "note": "Host socket not running, evaluated locally"
+            }
+
+        try:
+            with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                client.settimeout(1.0)
+                client.connect(self.socket_path)
+                cmd = f"STREAM_AUDIO_BLOCK {sample_rate} {frames} {format_type}\n"
+                client.sendall(cmd.encode("utf-8"))
+                resp = client.recv(1024).decode("utf-8").strip()
+                data = json.loads(resp)
+                return data
+        except Exception as e:
+            return {
+                "status": "error",
+                "message": str(e),
+                "sample_rate": sample_rate,
+                "frames": frames
+            }
+
     def set_parameter(self, track_id, plugin_id, param_name, value):
         key = f"{track_id}:{plugin_id}:{param_name}"
         if not os.path.exists(self.socket_path):
