@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.56] - 2026-03-30
+### Added
+- Bidirectional Undo/Redo stack engine in `session_memory.py` with `redo_last_action` and forward redo history clearing on fresh actions.
+- C++ `BobUISessionBridge::redoSessionAction()` in `bobui_bridge/bobui_session_bridge.hpp` / `.cpp`.
+- Exposed `redo_session_action()` in `bobui_bridge.py`.
+- Interactive "Redo Move" button in `gui_launcher.py` dispatching restored parameters over OSC.
+- Comprehensive unit test suite `TestUndoRedoStack` in `tests/test_ecosystem.py`.
+
 ## [1.0.55] - 2026-03-30
 ### Added
 - Session Conflict Resolution & Auto-Merge Engine in `session_memory.py` supporting `merge_latest`, `overwrite_remote`, and `keep_local` conflict strategies.

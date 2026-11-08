@@ -34,6 +34,7 @@ public:
     bool saveCheckpoint(const std::string& name, const std::vector<BobUITrackDescriptor>& tracks);
     std::vector<BobUITrackDescriptor> restoreCheckpoint(const std::string& name);
     std::vector<BobUITrackDescriptor> undoLastAction();
+    std::vector<BobUITrackDescriptor> redoSessionAction();
 
     // Low-Latency Binary Serialization for High-Speed Inter-DAW State Sync
     static std::vector<uint8_t> serializeTrackStateBinary(const BobUITrackDescriptor& track);
@@ -42,6 +43,7 @@ public:
 private:
     std::map<std::string, std::vector<BobUITrackDescriptor>> m_checkpoints;
     std::vector<std::vector<BobUITrackDescriptor>> m_undoHistory;
+    std::vector<std::vector<BobUITrackDescriptor>> m_redoHistory;
 };
 
 #endif // BOBUI_SESSION_BRIDGE_HPP

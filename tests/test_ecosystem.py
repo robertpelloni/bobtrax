@@ -491,5 +491,45 @@ class TestSessionConflictResolution(unittest.TestCase):
             self.assertIn("synth", mem.tracks)
 
 
+class TestUndoRedoStack(unittest.TestCase):
+    def test_undo_and_redo_cycle(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            t = mem.get_or_create_track("vocals")
+            t.fader = 0.0
+
+            # Record action 1: adjust vocal fader to -4.0dB
+            mem.record_action("assistant", "tuck vocals", [("/track/vocals/fader", -4.0)])
+            self.assertEqual(mem.tracks["vocals"].fader, -4.0)
+            self.assertEqual(len(mem.action_history), 1)
+
+            # Undo action 1
+            reverted = mem.undo_last_action()
+            self.assertEqual(len(reverted), 1)
+            self.assertEqual(mem.tracks["vocals"].fader, 0.0)
+            self.assertEqual(len(mem.action_history), 0)
+            self.assertEqual(len(mem.redo_history), 1)
+
+            # Redo action 1
+            applied = mem.redo_last_action()
+            self.assertEqual(len(applied), 1)
+            self.assertEqual(mem.tracks["vocals"].fader, -4.0)
+            self.assertEqual(len(mem.action_history), 1)
+            self.assertEqual(len(mem.redo_history), 0)
+
+    def test_bobui_bridge_redo_integration(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.get_or_create_track("snare").fader = 0.0
+            mem.record_action("assistant", "lower snare", [("/track/snare/fader", -2.0)])
+
+            import bobui_bridge
+            bobui_bridge.undo_session_action(mem)
+            self.assertEqual(mem.tracks["snare"].fader, 0.0)
+
+            bobui_bridge.redo_session_action(mem)
+            self.assertEqual(mem.tracks["snare"].fader, -2.0)
+
+
 if __name__ == "__main__":
     unittest.main()

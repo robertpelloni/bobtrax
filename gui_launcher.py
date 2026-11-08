@@ -427,6 +427,10 @@ class OmniDashboard(tk.Tk):
         self.undo_btn.pack(side="right", padx=2)
         ToolTip(self.undo_btn, "Revert the parameter adjustments from the previous AI mixing action.")
 
+        self.redo_btn = ttk.Button(mem_ctrl_bar, text="Redo Move", command=self.redo_last_mix_action)
+        self.redo_btn.pack(side="right", padx=2)
+        ToolTip(self.redo_btn, "Re-apply the parameter adjustments from the most recently undone mixing action.")
+
         self.audit_btn = ttk.Button(mem_ctrl_bar, text="Audit Consistency", command=self.audit_session_state)
         self.audit_btn.pack(side="right", padx=2)
         ToolTip(self.audit_btn, "Verify parameter bounds (-90dB to +12dB) and standardized track roles across session.")
@@ -1338,6 +1342,18 @@ class OmniDashboard(tk.Tk):
             self.log(f"[Session Memory] Reverted {len(reverted)} parameters from last action.")
         else:
             self.log("[Session Memory] No actions available to undo.")
+        self.refresh_session_memory()
+
+    def redo_last_mix_action(self):
+        if not session_memory:
+            return
+        applied = session_memory.SessionMemory().redo_last_action()
+        if applied:
+            for path, val in applied:
+                self.send_osc_direct(path, val)
+            self.log(f"[Session Memory] Re-applied {len(applied)} parameters from redo stack.")
+        else:
+            self.log("[Session Memory] No actions available to redo.")
         self.refresh_session_memory()
 
     def refresh_session_memory(self):

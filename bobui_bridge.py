@@ -157,6 +157,12 @@ def undo_session_action(mem=None):
     return target_mem.undo_last_action()
 
 
+def redo_session_action(mem=None):
+    """Re-applies the most recently undone mixing action in session memory."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.redo_last_action()
+
+
 def audit_session_consistency(mem=None):
     """Audits session memory track parameters and role consistency."""
     target_mem = mem or session_memory.SessionMemory()

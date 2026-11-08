@@ -91,6 +91,7 @@ std::vector<BobUITrackDescriptor> BobUISessionBridge::importSessionFromArdour(co
 bool BobUISessionBridge::saveCheckpoint(const std::string& name, const std::vector<BobUITrackDescriptor>& tracks) {
     m_checkpoints[name] = tracks;
     m_undoHistory.push_back(tracks);
+    m_redoHistory.clear();
     return true;
 }
 
@@ -98,6 +99,26 @@ std::vector<BobUITrackDescriptor> BobUISessionBridge::restoreCheckpoint(const st
     auto it = m_checkpoints.find(name);
     if (it != m_checkpoints.end()) {
         return it->second;
+    }
+    return {};
+}
+
+std::vector<BobUITrackDescriptor> BobUISessionBridge::undoLastAction() {
+    if (m_undoHistory.size() > 1) {
+        auto current = m_undoHistory.back();
+        m_undoHistory.pop_back();
+        m_redoHistory.push_back(current);
+        return m_undoHistory.back();
+    }
+    return {};
+}
+
+std::vector<BobUITrackDescriptor> BobUISessionBridge::redoSessionAction() {
+    if (!m_redoHistory.empty()) {
+        auto nextState = m_redoHistory.back();
+        m_redoHistory.pop_back();
+        m_undoHistory.push_back(nextState);
+        return nextState;
     }
     return {};
 }
@@ -146,12 +167,4 @@ BobUITrackDescriptor BobUISessionBridge::deserializeTrackStateBinary(const std::
     track.soloed = (bytes[offset] == 1);
     track.role = "instrument";
     return track;
-}
-
-std::vector<BobUITrackDescriptor> BobUISessionBridge::undoLastAction() {
-    if (m_undoHistory.size() > 1) {
-        m_undoHistory.pop_back(); // Remove current
-        return m_undoHistory.back();
-    }
-    return {};
 }

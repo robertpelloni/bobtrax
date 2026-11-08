@@ -109,6 +109,7 @@ class SessionMemory:
         self.storage_path = storage_path
         self.tracks = {}
         self.action_history = []
+        self.redo_history = []
         self.checkpoints = {}
         self.omni_socket_path = DEFAULT_OMNI_SOCKET
         self.omni_synced_params = {}
@@ -437,6 +438,8 @@ class SessionMemory:
             "moves": moves
         }
         self.action_history.append(entry)
+        # Any new action clears the forward redo history
+        self.redo_history.clear()
         # Keep last 50 actions
         if len(self.action_history) > 50:
             self.action_history.pop(0)
@@ -509,6 +512,7 @@ class SessionMemory:
         if not self.action_history:
             return []
         last_action = self.action_history.pop()
+        self.redo_history.append(last_action)
         reverted_moves = []
         for path, val in last_action.get("moves", []):
             parts = path.strip("/").split("/")
@@ -526,6 +530,19 @@ class SessionMemory:
                     reverted_moves.append((path, 0.0))
         self._save()
         return reverted_moves
+
+    def redo_last_action(self):
+        """Re-applies the most recently undone AI mixing action."""
+        if not self.redo_history:
+            return []
+        action = self.redo_history.pop()
+        self.action_history.append(action)
+        applied_moves = []
+        for path, val in action.get("moves", []):
+            self.record_osc_change(path, val)
+            applied_moves.append((path, val))
+        self._save()
+        return applied_moves
 
     def sync_plugin_parameter(self, track_id, plugin_id, param_name, value, send_ipc=True):
         """Synchronizes an Omni-Plugin Bridge parameter across DAWs and updates session memory."""
