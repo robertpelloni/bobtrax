@@ -426,5 +426,70 @@ class TestWaveformTelemetry(unittest.TestCase):
         self.assertEqual(history[-1], 0.95)
 
 
+class TestSessionConflictResolution(unittest.TestCase):
+    def test_merge_latest_strategy(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            track = mem.get_or_create_track("lead_vocal")
+            track.fader = -6.0
+            track.role = "vocal"
+            track.muted = False
+            track.last_updated = 1000.0
+
+            # Remote track with newer timestamp
+            incoming_track = session_memory.TrackState(name="lead_vocal", role="vocal")
+            incoming_track.fader = -2.5
+            incoming_track.muted = True
+            incoming_track.last_updated = 2000.0
+            res = mem.resolve_session_conflict([incoming_track], strategy="merge_latest")
+
+            self.assertEqual(res["status"], "success")
+            self.assertEqual(len(res["conflicts"]), 1)
+            self.assertEqual(mem.tracks["lead_vocal"].fader, -2.5)
+            self.assertTrue(mem.tracks["lead_vocal"].muted)
+
+    def test_overwrite_remote_and_keep_local_strategies(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            track = mem.get_or_create_track("bass_guitar")
+            track.fader = -3.0
+            track.role = "bass"
+
+            incoming_track = session_memory.TrackState(name="bass_guitar", role="bass")
+            incoming_track.fader = -8.0
+
+            # Test keep_local
+            res_keep = mem.resolve_session_conflict([incoming_track], strategy="keep_local")
+            self.assertEqual(mem.tracks["bass_guitar"].fader, -3.0)
+            self.assertEqual(len(res_keep["changes_applied"]), 0)
+
+            # Test overwrite_remote
+            res_overwrite = mem.resolve_session_conflict([incoming_track], strategy="overwrite_remote")
+            self.assertEqual(mem.tracks["bass_guitar"].fader, -8.0)
+            self.assertGreater(len(res_overwrite["changes_applied"]), 0)
+
+    def test_bobui_bridge_merge_foreign_session(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as mem_tmp, tempfile.NamedTemporaryFile(suffix=".json") as file_tmp:
+            mem = session_memory.SessionMemory(storage_path=mem_tmp.name)
+            track = mem.get_or_create_track("master")
+            track.fader = 0.0
+
+            # Write manifest JSON to file_tmp
+            manifest_data = {
+                "tracks": {
+                    "master": {"fader": -1.5, "role": "master", "muted": False, "soloed": False},
+                    "synth": {"fader": -4.0, "role": "synth", "muted": False, "soloed": False}
+                }
+            }
+            with open(file_tmp.name, "w") as f:
+                json.dump(manifest_data, f)
+
+            import bobui_bridge
+            report = bobui_bridge.merge_foreign_session(file_tmp.name, strategy="overwrite_remote", mem=mem)
+            self.assertEqual(report["status"], "success")
+            self.assertEqual(mem.tracks["master"].fader, -1.5)
+            self.assertIn("synth", mem.tracks)
+
+
 if __name__ == "__main__":
     unittest.main()

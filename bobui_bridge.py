@@ -132,6 +132,13 @@ def import_session_to_bobui(source_path, session_mem=None):
     return session_importer.import_from_ardour(source_path, session_mem)
 
 
+def merge_foreign_session(file_path, strategy="merge_latest", mem=None):
+    """Imports foreign session file and merges tracks with conflict resolution."""
+    target_mem = mem or session_memory.SessionMemory()
+    imported_tracks = import_session_to_bobui(file_path)
+    return target_mem.resolve_session_conflict(imported_tracks, strategy=strategy)
+
+
 def create_session_checkpoint(name, mem=None):
     """Saves a named snapshot checkpoint in session memory."""
     target_mem = mem or session_memory.SessionMemory()

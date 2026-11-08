@@ -241,6 +241,124 @@ class SessionMemory:
             self._save()
         return applied_changes
 
+    def resolve_session_conflict(self, incoming_tracks, strategy="merge_latest"):
+        """Merges foreign session tracks into local session memory, resolving parameter conflicts.
+
+        Supports incoming_tracks as dict {track_name: track_obj/dict} or list of TrackState objects/dicts.
+
+        Strategies:
+        - 'merge_latest': Preserves whichever update has the newer timestamp.
+        - 'overwrite_remote': Overwrites local track with foreign incoming parameters.
+        - 'keep_local': Discards foreign conflicting changes and keeps local state.
+        """
+        if isinstance(incoming_tracks, list):
+            track_items = []
+            for item in incoming_tracks:
+                t_name = item.name if hasattr(item, "name") else item.get("name", "unnamed")
+                track_items.append((t_name, item))
+        elif isinstance(incoming_tracks, dict):
+            track_items = list(incoming_tracks.items())
+        else:
+            track_items = []
+
+        merge_report = {
+            "status": "success",
+            "strategy": strategy,
+            "added": [],
+            "updated": [],
+            "conflicts": [],
+            "changes_applied": [],
+            "conflicts_resolved": [],
+            "merged_tracks_count": 0
+        }
+
+        for name, in_track in track_items:
+            name_lower = name.lower()
+            if name_lower not in self.tracks:
+                # New track
+                if isinstance(in_track, TrackState):
+                    self.tracks[name_lower] = in_track
+                else:
+                    self.tracks[name_lower] = TrackState.from_dict(in_track)
+                merge_report["added"].append(name_lower)
+                merge_report["changes_applied"].append({
+                    "track": name_lower,
+                    "field": "created",
+                    "old_val": None,
+                    "new_val": self.tracks[name_lower].fader
+                })
+                continue
+
+            local_track = self.tracks[name_lower]
+            in_fader = in_track.fader if hasattr(in_track, "fader") else (in_track.get("fader", local_track.fader) if isinstance(in_track, dict) else local_track.fader)
+            in_muted = in_track.muted if hasattr(in_track, "muted") else (in_track.get("muted", local_track.muted) if isinstance(in_track, dict) else local_track.muted)
+            in_soloed = in_track.soloed if hasattr(in_track, "soloed") else (in_track.get("soloed", local_track.soloed) if isinstance(in_track, dict) else local_track.soloed)
+
+            # Use last_updated as timestamp
+            local_time = getattr(local_track, "last_updated", getattr(local_track, "updated_at", 0.0))
+            if hasattr(in_track, "last_updated"):
+                in_updated_at = in_track.last_updated
+            elif hasattr(in_track, "updated_at"):
+                in_updated_at = in_track.updated_at
+            elif isinstance(in_track, dict):
+                in_updated_at = in_track.get("last_updated", in_track.get("updated_at", 0.0))
+            else:
+                in_updated_at = 0.0
+
+            has_conflict = (abs(local_track.fader - in_fader) > 1e-3 or
+                            local_track.muted != in_muted or
+                            local_track.soloed != in_soloed)
+
+            if has_conflict:
+                conflict_details = {
+                    "track": name_lower,
+                    "local": {"fader": local_track.fader, "muted": local_track.muted, "soloed": local_track.soloed, "updated_at": local_time},
+                    "remote": {"fader": in_fader, "muted": in_muted, "soloed": in_soloed, "updated_at": in_updated_at}
+                }
+                merge_report["conflicts"].append(conflict_details)
+
+                should_apply_remote = False
+                if strategy == "overwrite_remote":
+                    should_apply_remote = True
+                    merge_report["conflicts_resolved"].append(f"{name_lower} -> overwritten with remote")
+                elif strategy == "merge_latest":
+                    if in_updated_at >= local_time:
+                        should_apply_remote = True
+                        merge_report["conflicts_resolved"].append(f"{name_lower} -> merged latest (remote newer)")
+                    else:
+                        should_apply_remote = False
+                        merge_report["conflicts_resolved"].append(f"{name_lower} -> merged latest (local newer)")
+                else:  # keep_local
+                    should_apply_remote = False
+                    merge_report["conflicts_resolved"].append(f"{name_lower} -> kept local")
+
+                if should_apply_remote:
+                    if abs(local_track.fader - in_fader) > 1e-3:
+                        merge_report["changes_applied"].append({
+                            "track": name_lower, "field": "fader",
+                            "old_val": local_track.fader, "new_val": float(in_fader)
+                        })
+                        local_track.fader = float(in_fader)
+                    if local_track.muted != in_muted:
+                        merge_report["changes_applied"].append({
+                            "track": name_lower, "field": "muted",
+                            "old_val": local_track.muted, "new_val": bool(in_muted)
+                        })
+                        local_track.muted = bool(in_muted)
+                    if local_track.soloed != in_soloed:
+                        merge_report["changes_applied"].append({
+                            "track": name_lower, "field": "soloed",
+                            "old_val": local_track.soloed, "new_val": bool(in_soloed)
+                        })
+                        local_track.soloed = bool(in_soloed)
+
+                    local_track.last_updated = max(local_time, in_updated_at, time.time())
+                    merge_report["updated"].append(name_lower)
+
+        merge_report["merged_tracks_count"] = len(self.tracks)
+        self._save()
+        return merge_report
+
     def reclassify_track_roles(self):
         """Re-evaluates role classification for every active track based on naming heuristic."""
         reclassified = {}

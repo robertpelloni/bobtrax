@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.55] - 2026-03-30
+### Added
+- Session Conflict Resolution & Auto-Merge Engine in `session_memory.py` supporting `merge_latest`, `overwrite_remote`, and `keep_local` conflict strategies.
+- Exposed `merge_foreign_session()` in `bobui_bridge.py`.
+- Interactive "Merge Session (Conflict Safe)..." dialog in `gui_launcher.py` with conflict reporting, live OSC parameter dispatch, and strategy selection.
+- Comprehensive unit test suite additions in `tests/test_ecosystem.py` covering all three conflict resolution strategies and foreign session file merging.
+
 ## [1.0.33] - 2026-11-04
 ### Added
 - Cross-DAW Session Importer engine in `session_importer.py` for direct ingestion of Ardour XML (`.ardour`), LMMS XML (`.mmp`), and universal JSON manifests into `session_memory.py`.

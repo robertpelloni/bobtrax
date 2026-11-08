@@ -443,6 +443,10 @@ class OmniDashboard(tk.Tk):
         self.import_session_btn.pack(side="right", padx=2)
         ToolTip(self.import_session_btn, "Import track faders and settings from an Ardour (.ardour) or LMMS (.mmp) file.")
 
+        self.merge_session_btn = ttk.Button(mem_ctrl_bar, text="Merge Session (Conflict Safe)...", command=self.merge_session_dialog)
+        self.merge_session_btn.pack(side="right", padx=2)
+        ToolTip(self.merge_session_btn, "Import and merge external session with conflict detection and automated resolution strategies.")
+
         self.export_session_btn = ttk.Button(mem_ctrl_bar, text="Export Session...", command=self.export_session_dialog)
         self.export_session_btn.pack(side="right", padx=2)
         ToolTip(self.export_session_btn, "Export current session state to Ardour (.ardour) or LMMS (.mmp) project files.")
@@ -1081,6 +1085,71 @@ class OmniDashboard(tk.Tk):
                 self.refresh_session_memory()
             except Exception as e:
                 self.log(f"Import session error: {e}")
+
+    def merge_session_dialog(self):
+        if not session_memory or not session_importer:
+            self.log("Session importer or session memory module missing.")
+            return
+
+        in_file = filedialog.askopenfilename(
+            title="Select Session File to Merge",
+            filetypes=[
+                ("Supported Sessions", "*.ardour *.mmp *.json *.xml"),
+                ("Ardour Session (*.ardour)", "*.ardour"),
+                ("LMMS Project (*.mmp)", "*.mmp"),
+                ("Universal Manifest (*.json)", "*.json"),
+                ("All Files", "*.*")
+            ]
+        )
+        if not in_file:
+            return
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Merge Session - Conflict Resolution")
+        dialog.geometry("380x220")
+        dialog.transient(self)
+
+        tk.Label(dialog, text=f"Merging: {os.path.basename(in_file)}", font=("Helvetica", 9, "bold")).pack(pady=6)
+        tk.Label(dialog, text="Select Conflict Resolution Strategy:", font=("Helvetica", 8)).pack(pady=2)
+
+        strat_var = tk.StringVar(value="merge_latest")
+        rb_frame = tk.Frame(dialog)
+        rb_frame.pack(pady=4)
+
+        ttk.Radiobutton(rb_frame, text="Merge Latest Timestamp (Automatic)", variable=strat_var, value="merge_latest").pack(anchor="w", pady=2)
+        ttk.Radiobutton(rb_frame, text="Overwrite Remote (Incoming Takes Priority)", variable=strat_var, value="overwrite_remote").pack(anchor="w", pady=2)
+        ttk.Radiobutton(rb_frame, text="Keep Local (Current Session Preserved)", variable=strat_var, value="keep_local").pack(anchor="w", pady=2)
+
+        def _execute_merge():
+            strategy = strat_var.get()
+            dialog.destroy()
+            try:
+                mem = session_memory.SessionMemory()
+                if in_file.endswith(".mmp"):
+                    incoming_tracks = session_importer.import_from_lmms(in_file)
+                elif in_file.endswith(".json"):
+                    incoming_tracks = session_importer.import_from_manifest(in_file)
+                else:
+                    incoming_tracks = session_importer.import_from_ardour(in_file)
+
+                report = mem.resolve_session_conflict(incoming_tracks, strategy=strategy)
+                self.log(f"[Session Merge] Strategy '{strategy}' applied: {report['merged_tracks_count']} total tracks.")
+                self.log(f"  • Conflicts detected: {len(report['conflicts'])}")
+                self.log(f"  • Changes applied: {len(report['changes_applied'])}")
+                for chg in report["changes_applied"]:
+                    self.log(f"    - {chg['track']} ({chg['field']}): {chg['old_val']} -> {chg['new_val']}")
+                    # If fader changed, send live OSC update to active DAWs
+                    if chg['field'] == 'fader':
+                        self.send_osc_direct(f"/track/{chg['track']}/fader", chg['new_val'])
+
+                self.refresh_session_memory()
+            except Exception as e:
+                self.log(f"Merge session error: {e}")
+
+        btn_row = tk.Frame(dialog)
+        btn_row.pack(pady=10)
+        ttk.Button(btn_row, text="Execute Merge", command=_execute_merge).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side="left", padx=4)
 
     def export_session_dialog(self):
         if not session_memory or not session_exporter:
