@@ -290,6 +290,15 @@ class TestBobUIBridgeSync(unittest.TestCase):
         self.assertEqual(res["frames"], 256)
         self.assertEqual(res["gain"], 0.5)
 
+    def test_plugin_compatibility_registry(self):
+        info_ardour = bobui_bridge.query_plugin_compatibility("TestPlugin", "ardour")
+        self.assertIn("LV2", info_ardour["native_formats"])
+        self.assertIn("CLAP", info_ardour["bridged_formats"])
+
+        info_lmms = bobui_bridge.query_plugin_compatibility("TestPlugin", "lmms")
+        self.assertIn("VST2", info_lmms["native_formats"])
+        self.assertIn("VST3", info_lmms["bridged_formats"])
+
 
 class TestBobUISessionManagement(unittest.TestCase):
     def test_bobui_session_export_and_import(self):

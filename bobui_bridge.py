@@ -21,6 +21,26 @@ import session_memory
 
 DEFAULT_SOCKET_PATH = "/tmp/bobtrax_omni_bridge.sock"
 
+PLUGIN_COMPATIBILITY_REGISTRY = {
+    "ardour": {"native": ["LV2", "VST3", "LADSPA"], "bridged": ["CLAP", "VST2"]},
+    "lmms": {"native": ["VST2", "LADSPA"], "bridged": ["LV2", "VST3", "CLAP"]},
+    "muse": {"native": ["LV2", "DSSI", "LADSPA"], "bridged": ["VST3", "CLAP"]},
+    "zrythm": {"native": ["LV2", "VST3", "CLAP"], "bridged": ["LADSPA"]}
+}
+
+
+def query_plugin_compatibility(plugin_id, target_daw):
+    """Checks whether a plugin format is supported natively or via Omni-Bridge for a DAW."""
+    daw_key = target_daw.lower()
+    compat = PLUGIN_COMPATIBILITY_REGISTRY.get(daw_key, {"native": [], "bridged": ["VST3", "LV2", "CLAP"]})
+    return {
+        "plugin_id": plugin_id,
+        "daw": daw_key,
+        "native_formats": compat["native"],
+        "bridged_formats": compat["bridged"],
+        "universal_bridge_ready": True
+    }
+
 
 class BobUIBridge:
     def __init__(self, socket_path=DEFAULT_SOCKET_PATH):

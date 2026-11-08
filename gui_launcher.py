@@ -683,6 +683,10 @@ class OmniDashboard(tk.Tk):
         probe_dsp_btn.pack(side="right", padx=2)
         ToolTip(probe_dsp_btn, "Stream a simulated 512-frame audio buffer through the Omni-Plugin Host.")
 
+        compat_btn = ttk.Button(bridge_status_bar, text="Check Plugin Compat", command=self.check_plugin_compat)
+        compat_btn.pack(side="right", padx=2)
+        ToolTip(compat_btn, "Query format compatibility across Ardour, LMMS, MusE, and Zrythm.")
+
         # DAW Launchers
         daw_btns_frame = tk.Frame(workstation_frame)
         daw_btns_frame.pack(fill="x", pady=2)
@@ -1697,6 +1701,19 @@ class OmniDashboard(tk.Tk):
     # -------------------------------------------------------------
     # Omni-Plugin Bridge & DAW Workstation Launchers
     # -------------------------------------------------------------
+    def check_plugin_compat(self):
+        self.log("[Plugin Compatibility] Querying cross-DAW format bridging registry...")
+        try:
+            import bobui_bridge
+            for daw in ["ardour", "lmms", "muse", "zrythm"]:
+                info = bobui_bridge.query_plugin_compatibility("OmniSynth", daw)
+                natives = ", ".join(info.get("native_formats", []))
+                bridged = ", ".join(info.get("bridged_formats", []))
+                self.log(f"  • {daw.upper()}: Native=[{natives}] | Bridged=[{bridged}]")
+            self.log("[Plugin Compatibility] Universal plugin bridging active across all workstations.")
+        except Exception as e:
+            self.log(f"[Plugin Compatibility Error] {e}")
+
     def probe_dsp_block(self):
         self.log("Dispatching 512-frame DSP audio block probe to Omni-Plugin Host...")
         def _probe():

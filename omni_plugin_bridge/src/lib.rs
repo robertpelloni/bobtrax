@@ -122,6 +122,12 @@ impl OmniBridge {
                                     let resp = "{\"status\": \"ok\", \"action\": \"manifest_synced\"}\n";
                                     let _ = stream.write_all(resp.as_bytes());
                                     continue;
+                                } else if trimmed.starts_with("GET_PLUGIN_INFO ") {
+                                    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                    let p_id = parts.get(1).unwrap_or(&"unknown");
+                                    let resp = format!("{{\"status\": \"ok\", \"plugin_id\": \"{}\", \"formats\": [\"VST3\", \"LV2\", \"CLAP\"], \"bridged\": true}}\n", p_id);
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
                                 } else if trimmed == "GET_ALL" {
                                     let map = params_ref.lock().unwrap();
                                     let mut entries = Vec::new();

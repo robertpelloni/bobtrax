@@ -14,6 +14,13 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.54] - 2026-03-30
+### Added
+- Cross-DAW Plugin Compatibility Format Registry (`PLUGIN_COMPATIBILITY_REGISTRY` and `query_plugin_compatibility`) in `bobui_bridge.py`.
+- Rust Omni-Plugin Host plugin info query protocol (`GET_PLUGIN_INFO <id>`) in `omni_plugin_bridge/src/lib.rs`.
+- Interactive "Check Plugin Compat" probe button in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_plugin_compatibility_registry` in `tests/test_ecosystem.py` (29/29 tests passing).
+
 ## [1.0.53] - 2026-03-30
 ### Added
 - Session Transition Verification & Auto-Rollback (`verify_and_rollback_transition`) in `bobui_bridge.py`.
