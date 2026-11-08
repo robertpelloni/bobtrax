@@ -12,6 +12,8 @@ import os
 import socket
 import struct
 import sys
+import tempfile
+import time
 
 import session_exporter
 import session_importer
@@ -139,6 +141,35 @@ def sync_session_diff(checkpoint_name, mem=None):
     target_mem = mem or session_memory.SessionMemory()
     diff = target_mem.compute_state_diff(checkpoint_name)
     return diff
+
+
+def transition_session(from_daw, to_daw, target_file_path=None, mem=None):
+    """Executes state-preserved session transition between two member DAWs."""
+    target_mem = mem or session_memory.SessionMemory()
+    checkpoint_name = f"transition_{from_daw}_to_{to_daw}_{int(time.time())}"
+    target_mem.save_checkpoint(checkpoint_name)
+
+    # Register target DAW active status
+    target_mem.register_daw(to_daw)
+
+    out_path = target_file_path
+    if not out_path:
+        ext = "ardour" if to_daw == "ardour" else ("mmp" if to_daw == "lmms" else "json")
+        out_path = os.path.join(tempfile.gettempdir(), f"transitioned_session.{ext}")
+
+    export_session_from_bobui(target_mem.tracks, to_daw, out_path)
+
+    # Sync live track updates to the new DAW
+    broadcast_res = sync_session_across_daws([to_daw], target_mem.tracks, target_mem)
+
+    return {
+        "status": "success",
+        "from_daw": from_daw,
+        "to_daw": to_daw,
+        "checkpoint": checkpoint_name,
+        "exported_file": out_path,
+        "broadcast": broadcast_res
+    }
 
 
 def sync_session_across_daws(target_daws=None, tracks=None, mem=None):

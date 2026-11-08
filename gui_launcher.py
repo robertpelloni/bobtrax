@@ -459,6 +459,10 @@ class OmniDashboard(tk.Tk):
         self.multi_daw_sync_btn.pack(side="right", padx=2)
         ToolTip(self.multi_daw_sync_btn, "Simultaneously push entire session state over binary socket & OSC to all active DAWs.")
 
+        self.transition_btn = ttk.Button(mem_ctrl_bar, text="Transition to DAW...", command=self.transition_daw_dialog)
+        self.transition_btn.pack(side="right", padx=2)
+        ToolTip(self.transition_btn, "Seamlessly migrate active session to another DAW with preserved checkpoints and state.")
+
         self.auto_save_var = tk.BooleanVar(value=True)
         auto_save_chk = ttk.Checkbutton(mem_ctrl_bar, text="Auto-Save", variable=self.auto_save_var, command=self._toggle_auto_save)
         auto_save_chk.pack(side="right", padx=4)
@@ -1101,6 +1105,41 @@ class OmniDashboard(tk.Tk):
                 self.log(f"[Session Exporter] Session exported successfully to: {out_file}")
             except Exception as e:
                 self.log(f"Export session error: {e}")
+
+    def transition_daw_dialog(self):
+        dialog = tk.Toplevel(self)
+        dialog.title("Transition Session to DAW")
+        dialog.geometry("340x200")
+        dialog.transient(self)
+
+        tk.Label(dialog, text="Source DAW:", font=("Helvetica", 9)).pack(anchor="w", padx=16, pady=(8, 2))
+        src_combo = ttk.Combobox(dialog, values=["ardour", "lmms", "muse", "zrythm"], state="readonly", width=24)
+        src_combo.set("ardour")
+        src_combo.pack(padx=16, pady=2)
+
+        tk.Label(dialog, text="Target DAW:", font=("Helvetica", 9)).pack(anchor="w", padx=16, pady=(6, 2))
+        tgt_combo = ttk.Combobox(dialog, values=["ardour", "lmms", "muse", "zrythm"], state="readonly", width=24)
+        tgt_combo.set("lmms")
+        tgt_combo.pack(padx=16, pady=2)
+
+        def _do_transition():
+            src = src_combo.get()
+            tgt = tgt_combo.get()
+            try:
+                import bobui_bridge
+                res = bobui_bridge.transition_session(src, tgt)
+                self.log(f"[Session Transition] Successfully transitioned from {src.upper()} to {tgt.upper()}.")
+                self.log(f"  • Snapshot saved: {res.get('checkpoint')}")
+                self.log(f"  • Exported: {res.get('exported_file')}")
+                self.refresh_session_memory()
+            except Exception as e:
+                self.log(f"[Transition Error] {e}")
+            dialog.destroy()
+
+        btn_row = tk.Frame(dialog)
+        btn_row.pack(pady=12)
+        ttk.Button(btn_row, text="Execute Transition", command=_do_transition).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side="left", padx=4)
 
     def broadcast_session_to_all_daws(self):
         self.log("[Multi-DAW Sync] Broadcasting active session state across all member DAWs (Ardour, LMMS, MusE, Zrythm)...")

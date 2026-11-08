@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.52] - 2026-03-30
+### Added
+- Cross-DAW Session Transition State Machine (`transition_session`) in `bobui_bridge.py` managing state snapshots, foreign file synthesis, and target DAW live synchronization.
+- Interactive "Transition to DAW..." dialog in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_transition_session_workflow` in `tests/test_ecosystem.py` (27/27 tests passing).
+
 ## [1.0.51] - 2026-03-30
 ### Added
 - Multi-DAW Concurrent Session Synchronization Harness (`sync_session_across_daws`) in `bobui_bridge.py`.

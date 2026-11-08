@@ -359,6 +359,16 @@ class TestBobUISessionManagement(unittest.TestCase):
         self.assertEqual(res["ardour"]["status"], "synced")
         self.assertEqual(res["ardour"]["tracks_dispatched"], 2)
 
+    def test_transition_session_workflow(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            res = bobui_bridge.transition_session("ardour", "lmms", mem=mem)
+            self.assertEqual(res["status"], "success")
+            self.assertEqual(res["from_daw"], "ardour")
+            self.assertEqual(res["to_daw"], "lmms")
+            self.assertTrue(os.path.exists(res["exported_file"]))
+            self.assertIn(res["checkpoint"], mem.list_checkpoints())
+
 
 class TestDawRegistration(unittest.TestCase):
     def test_daw_heartbeat_and_active_filtering(self):
