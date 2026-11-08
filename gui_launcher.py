@@ -978,7 +978,11 @@ class OmniDashboard(tk.Tk):
         val = float(value)
         if session_memory:
             session_memory.SessionMemory().set_fader(track_name, val)
-        self.send_osc_direct(f"/track/{track_name}/fader", val)
+        try:
+            import bobui_bridge
+            bobui_bridge.broadcast_track_update(track_name, fader=val)
+        except Exception:
+            self.send_osc_direct(f"/track/{track_name}/fader", val)
 
     def _toggle_track_mute(self, track_name):
         if not session_memory:
@@ -987,7 +991,11 @@ class OmniDashboard(tk.Tk):
         w = self.track_widgets.get(track_name)
         if w:
             w["mute_btn"].config(bg="#f44336" if is_muted else "#3a3f4b")
-        self.send_osc_direct(f"/track/{track_name}/mute", 1.0 if is_muted else 0.0)
+        try:
+            import bobui_bridge
+            bobui_bridge.broadcast_track_update(track_name, muted=is_muted)
+        except Exception:
+            self.send_osc_direct(f"/track/{track_name}/mute", 1.0 if is_muted else 0.0)
         self.log(f"Track {track_name.upper()} {'MUTED' if is_muted else 'UNMUTED'}.")
 
     def _toggle_track_solo(self, track_name):
@@ -997,7 +1005,11 @@ class OmniDashboard(tk.Tk):
         w = self.track_widgets.get(track_name)
         if w:
             w["solo_btn"].config(bg="#ffeb3b" if is_solo else "#3a3f4b", fg="#000" if is_solo else "#fff")
-        self.send_osc_direct(f"/track/{track_name}/solo", 1.0 if is_solo else 0.0)
+        try:
+            import bobui_bridge
+            bobui_bridge.broadcast_track_update(track_name, soloed=is_solo)
+        except Exception:
+            self.send_osc_direct(f"/track/{track_name}/solo", 1.0 if is_solo else 0.0)
         self.log(f"Track {track_name.upper()} {'SOLOED' if is_solo else 'UNSOLOED'}.")
 
     def _on_plugin_cutoff_moved(self, val):

@@ -141,6 +141,37 @@ def sync_session_diff(checkpoint_name, mem=None):
     return diff
 
 
+def broadcast_track_update(track_name, fader=None, muted=None, soloed=None, osc_bridge_port=8000, socket_path=DEFAULT_SOCKET_PATH):
+    """Simultaneously dispatches track updates over low-latency binary socket and UDP OSC."""
+    results = {}
+    # 1. Low-latency binary socket sync
+    if fader is not None or muted is not None or soloed is not None:
+        f_val = fader if fader is not None else 0.0
+        m_val = muted if muted is not None else False
+        s_val = soloed if soloed is not None else False
+        results["socket_sync"] = fast_sync_track_state(track_name, f_val, m_val, s_val, socket_path)
+
+    # 2. OSC broadcast to Member DAWs
+    try:
+        from pythonosc.udp_client import SimpleUDPClient
+        client = SimpleUDPClient("127.0.0.1", osc_bridge_port)
+        try:
+            if fader is not None:
+                client.send_message(f"/track/{track_name}/fader", float(fader))
+            if muted is not None:
+                client.send_message(f"/track/{track_name}/mute", 1.0 if muted else 0.0)
+            if soloed is not None:
+                client.send_message(f"/track/{track_name}/solo", 1.0 if soloed else 0.0)
+        finally:
+            if hasattr(client, "_sock") and client._sock:
+                client._sock.close()
+        results["osc_sync"] = "ok"
+    except Exception as e:
+        results["osc_sync"] = str(e)
+
+    return results
+
+
 def fast_sync_track_state(track_name, fader=0.0, muted=False, soloed=False, socket_path=DEFAULT_SOCKET_PATH):
     """Encodes track parameters into binary layout and transmits to Omni-Plugin bridge."""
     name_bytes = track_name.encode("utf-8")[:255]

@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.50] - 2026-03-30
+### Added
+- Multi-DAW Session Broadcast Bus (`broadcast_track_update`) in `bobui_bridge.py` dispatching simultaneous low-latency binary frames and normalized OSC to member DAWs.
+- Connected channel strip fader and mute/solo callbacks in `gui_launcher.py` to `broadcast_track_update`.
+- Automated unit test coverage `test_bobui_broadcast_track_update` in `tests/test_ecosystem.py` (25/25 tests passing).
+
 ## [1.0.49] - 2026-03-30
 ### Added
 - Session State Minimal Diff Calculation & Patch Application (`compute_state_diff`, `apply_state_diff`) in `session_memory.py`.

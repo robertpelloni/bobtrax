@@ -342,6 +342,12 @@ class TestBobUISessionManagement(unittest.TestCase):
         # 1 byte len + 6 bytes 'master' + 4 bytes float + 1 byte muted + 1 byte soloed = 13 bytes
         self.assertEqual(res["packed_len"], 13)
 
+    def test_bobui_broadcast_track_update(self):
+        res = bobui_bridge.broadcast_track_update("kick", fader=-2.5, muted=False, soloed=True, socket_path="/tmp/nonexistent.sock")
+        self.assertIn("socket_sync", res)
+        self.assertIn("osc_sync", res)
+        self.assertEqual(res["socket_sync"]["status"], "error")
+
 
 class TestDawRegistration(unittest.TestCase):
     def test_daw_heartbeat_and_active_filtering(self):

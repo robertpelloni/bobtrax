@@ -1,5 +1,11 @@
 # Handoff Document
 
+## Session Summary (1.0.50)
+- **Cross-DAW Session Broadcast Bus:**
+  - Implemented `broadcast_track_update` in `bobui_bridge.py` combining binary socket streaming and UDP OSC broadcast.
+  - Wired channel strips in `gui_launcher.py` to `broadcast_track_update`.
+  - Added unit test validation in `tests/test_ecosystem.py` (25/25 tests passing).
+
 ## Session Summary (1.0.49)
 - **Minimal State Diff & Incremental Patch Synchronization:**
   - Implemented `compute_state_diff` and `apply_state_diff` in `session_memory.py`.
