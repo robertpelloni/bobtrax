@@ -147,6 +147,42 @@ class SessionMemory:
     def is_auto_save_active(self):
         return self._auto_save_running
 
+    def audit_session_consistency(self):
+        """Audits all tracks in session memory for fader bounds, valid roles, and parameter integrity."""
+        issues = []
+        for name, track in self.tracks.items():
+            # Check fader bounds (-90.0 dB to +12.0 dB)
+            if track.fader < -90.0 or track.fader > 12.0:
+                issues.append(f"Track '{name}' fader out of bounds ({track.fader} dB). Clamping.")
+                track.fader = max(-90.0, min(12.0, track.fader))
+            # Verify role
+            valid_roles = ["kick", "snare", "bass", "vocal", "cymbals", "synth", "master", "instrument", "generic"]
+            if track.role not in valid_roles:
+                new_role = self.infer_role(name)
+                issues.append(f"Track '{name}' has unknown role '{track.role}'. Re-inferred to '{new_role}'.")
+                track.role = new_role
+
+        if issues:
+            self._save()
+        return {
+            "total_tracks": len(self.tracks),
+            "healthy": len(issues) == 0,
+            "issues_resolved": issues
+        }
+
+    def reclassify_track_roles(self):
+        """Re-evaluates role classification for every active track based on naming heuristic."""
+        reclassified = {}
+        for name, track in self.tracks.items():
+            old_role = track.role
+            new_role = self.infer_role(name)
+            if old_role != new_role:
+                track.role = new_role
+                reclassified[name] = {"old": old_role, "new": new_role}
+        if reclassified:
+            self._save()
+        return reclassified
+
     def register_daw(self, daw_name, port=None):
         """Records active DAW heartbeat and communication endpoint."""
         name = daw_name.lower()

@@ -107,6 +107,20 @@ class TestSessionMemory(unittest.TestCase):
         self.mem.disable_auto_save()
         self.assertFalse(self.mem.is_auto_save_active())
 
+    def test_session_consistency_audit(self):
+        # Inject an out-of-bounds fader and an invalid role
+        track = self.mem.get_or_create_track("mystery_track")
+        track.fader = 45.0  # Excessive
+        track.role = "alien_synth_invalid"
+
+        res = self.mem.audit_session_consistency()
+        self.assertFalse(res["healthy"])
+        self.assertGreater(len(res["issues_resolved"]), 0)
+
+        # Fader must be clamped and role re-inferred
+        self.assertLessEqual(self.mem.tracks["mystery_track"].fader, 12.0)
+        self.assertIn(self.mem.tracks["mystery_track"].role, ["kick", "snare", "bass", "vocal", "cymbals", "synth", "master", "instrument", "generic"])
+
 
 class TestAiMixingAssistant(unittest.TestCase):
     def test_acoustic_dsp_rules(self):

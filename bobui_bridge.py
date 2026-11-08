@@ -127,6 +127,12 @@ def undo_session_action(mem=None):
     return target_mem.undo_last_action()
 
 
+def audit_session_consistency(mem=None):
+    """Audits session memory track parameters and role consistency."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.audit_session_consistency()
+
+
 if __name__ == "__main__":
     path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SOCKET_PATH
     alive = verify_omni_connection(path)

@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.47] - 2026-03-30
+### Added
+- Session Track Role Re-Inference and Consistency Check (`audit_session_consistency`, `reclassify_track_roles`) in `session_memory.py`.
+- Exposed session consistency audit in `bobui_bridge.py` and added "Audit Consistency" tool button in `gui_launcher.py`.
+- Automated unit test coverage `test_session_consistency_audit` in `tests/test_ecosystem.py` (22/22 tests passing).
+
 ## [1.0.46] - 2026-03-30
 ### Added
 - Background Session Auto-Save Daemon (`enable_auto_save`, `disable_auto_save`) in `session_memory.py` periodically persisting state and broadcasting manifests.

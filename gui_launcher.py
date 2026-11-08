@@ -427,6 +427,10 @@ class OmniDashboard(tk.Tk):
         self.undo_btn.pack(side="right", padx=2)
         ToolTip(self.undo_btn, "Revert the parameter adjustments from the previous AI mixing action.")
 
+        self.audit_btn = ttk.Button(mem_ctrl_bar, text="Audit Consistency", command=self.audit_session_state)
+        self.audit_btn.pack(side="right", padx=2)
+        ToolTip(self.audit_btn, "Verify parameter bounds (-90dB to +12dB) and standardized track roles across session.")
+
         self.save_snap_btn = ttk.Button(mem_ctrl_bar, text="Save Snapshot", command=self.save_session_snapshot)
         self.save_snap_btn.pack(side="right", padx=2)
         ToolTip(self.save_snap_btn, "Save a named checkpoint of all track faders and settings.")
@@ -1124,6 +1128,19 @@ class OmniDashboard(tk.Tk):
         btn_row.pack(pady=12)
         ttk.Button(btn_row, text="Restore", command=_do_restore).pack(side="left", padx=4)
         ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side="left", padx=4)
+
+    def audit_session_state(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        res = mem.audit_session_consistency()
+        if res.get("healthy"):
+            self.log(f"[Session Audit] All {res.get('total_tracks')} tracks conform to parameter boundaries and valid roles.")
+        else:
+            self.log(f"[Session Audit] Resolved {len(res.get('issues_resolved'))} issues across session tracks:")
+            for issue in res.get("issues_resolved"):
+                self.log(f"  • {issue}")
+        self.refresh_session_memory()
 
     def save_session_snapshot(self):
         if not session_memory:

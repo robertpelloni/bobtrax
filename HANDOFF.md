@@ -1,5 +1,11 @@
 # Handoff Document
 
+## Session Summary (1.0.47)
+- **Session Track Consistency & Role Re-Inference:**
+  - Implemented `audit_session_consistency` and `reclassify_track_roles` in `session_memory.py`.
+  - Added "Audit Consistency" tool in OmniDashboard (`gui_launcher.py`) logging resolution diagnostics.
+  - Added unit test validation in `tests/test_ecosystem.py` (22/22 tests passing).
+
 ## Session Summary (1.0.46)
 - **Session Auto-Save Daemon & Resilience:**
   - Implemented background periodic state auto-saver (`enable_auto_save`, `disable_auto_save`) in `session_memory.py`.
