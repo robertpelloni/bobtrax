@@ -121,6 +121,34 @@ class TestSessionMemory(unittest.TestCase):
         self.assertLessEqual(self.mem.tracks["mystery_track"].fader, 12.0)
         self.assertIn(self.mem.tracks["mystery_track"].role, ["kick", "snare", "bass", "vocal", "cymbals", "synth", "master", "instrument", "generic"])
 
+    def test_session_state_diff_and_patch(self):
+        self.mem.set_fader("kick", 0.0)
+        self.mem.save_checkpoint("base_check")
+
+        # No diff immediately
+        diff = self.mem.compute_state_diff("base_check")
+        self.assertEqual(diff, {})
+
+        # Mutate
+        self.mem.set_fader("kick", -4.5)
+        self.mem.toggle_mute("kick")
+        diff_mutated = self.mem.compute_state_diff("base_check")
+        self.assertIn("kick", diff_mutated)
+        self.assertEqual(diff_mutated["kick"]["changes"]["fader"], -4.5)
+        self.assertTrue(diff_mutated["kick"]["changes"]["muted"])
+
+        # Patch application
+        patch = {
+            "kick": {
+                "action": "modified",
+                "changes": {"fader": -1.0, "muted": False}
+            }
+        }
+        applied = self.mem.apply_state_diff(patch)
+        self.assertEqual(self.mem.tracks["kick"].fader, -1.0)
+        self.assertFalse(self.mem.tracks["kick"].muted)
+        self.assertTrue(any("fader" in p[0] for p in applied))
+
 
 class TestAiMixingAssistant(unittest.TestCase):
     def test_acoustic_dsp_rules(self):

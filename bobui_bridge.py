@@ -134,6 +134,13 @@ def audit_session_consistency(mem=None):
     return target_mem.audit_session_consistency()
 
 
+def sync_session_diff(checkpoint_name, mem=None):
+    """Calculates minimal parameter differences from checkpoint and pushes updates."""
+    target_mem = mem or session_memory.SessionMemory()
+    diff = target_mem.compute_state_diff(checkpoint_name)
+    return diff
+
+
 def fast_sync_track_state(track_name, fader=0.0, muted=False, soloed=False, socket_path=DEFAULT_SOCKET_PATH):
     """Encodes track parameters into binary layout and transmits to Omni-Plugin bridge."""
     name_bytes = track_name.encode("utf-8")[:255]

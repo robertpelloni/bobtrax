@@ -451,6 +451,10 @@ class OmniDashboard(tk.Tk):
         self.sync_manifest_btn.pack(side="right", padx=2)
         ToolTip(self.sync_manifest_btn, "Push full session layout and track states to Omni-Plugin Bridge host.")
 
+        self.diff_sync_btn = ttk.Button(mem_ctrl_bar, text="Sync Diff to Base", command=self.sync_diff_to_baseline)
+        self.diff_sync_btn.pack(side="right", padx=2)
+        ToolTip(self.diff_sync_btn, "Compute minimal state diff against baseline checkpoint and broadcast delta.")
+
         self.auto_save_var = tk.BooleanVar(value=True)
         auto_save_chk = ttk.Checkbutton(mem_ctrl_bar, text="Auto-Save", variable=self.auto_save_var, command=self._toggle_auto_save)
         auto_save_chk.pack(side="right", padx=4)
@@ -1081,6 +1085,26 @@ class OmniDashboard(tk.Tk):
                 self.log(f"[Session Exporter] Session exported successfully to: {out_file}")
             except Exception as e:
                 self.log(f"Export session error: {e}")
+
+    def sync_diff_to_baseline(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        checkpoints = mem.list_checkpoints()
+        if not checkpoints:
+            self.log("[Session Diff] No checkpoints saved to compute diff against. Save a snapshot first.")
+            return
+
+        base_cp = checkpoints[0]
+        diff = mem.compute_state_diff(base_cp)
+        if not diff:
+            self.log(f"[Session Diff] Current session matches checkpoint '{base_cp}' 100%. No diff to broadcast.")
+        else:
+            self.log(f"[Session Diff] Computed {len(diff)} track deltas against baseline '{base_cp}':")
+            for t_name, chg in diff.items():
+                self.log(f"  • {t_name.upper()}: {chg}")
+            # Stream diff to bridge
+            mem.sync_session_manifest_to_bridge()
 
     def sync_manifest_to_bridge(self):
         if not session_memory:

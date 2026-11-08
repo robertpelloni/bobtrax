@@ -1,5 +1,11 @@
 # Handoff Document
 
+## Session Summary (1.0.49)
+- **Minimal State Diff & Incremental Patch Synchronization:**
+  - Implemented `compute_state_diff` and `apply_state_diff` in `session_memory.py`.
+  - Added "Sync Diff to Base" button in OmniDashboard (`gui_launcher.py`) logging minimal parameter diffs.
+  - Added unit test validation in `tests/test_ecosystem.py` (24/24 tests passing).
+
 ## Session Summary (1.0.48)
 - **Low-Latency Binary Track Synchronization:**
   - Implemented binary serialization in C++ `BobUISessionBridge`.

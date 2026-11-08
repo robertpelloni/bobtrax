@@ -170,6 +170,77 @@ class SessionMemory:
             "issues_resolved": issues
         }
 
+    def compute_state_diff(self, checkpoint_name):
+        """Calculates minimal parameter differences between active tracks and a named checkpoint."""
+        if checkpoint_name not in self.checkpoints:
+            return None
+        snapshot = self.checkpoints[checkpoint_name]["snapshot"]
+        diff = {}
+
+        for name, track in self.tracks.items():
+            if name not in snapshot:
+                diff[name] = {"action": "added", "state": track.to_dict()}
+                continue
+
+            snap_track = snapshot[name]
+            track_diff = {}
+            if abs(track.fader - snap_track.get("fader", 0.0)) > 1e-3:
+                track_diff["fader"] = track.fader
+            if track.muted != snap_track.get("muted", False):
+                track_diff["muted"] = track.muted
+            if track.soloed != snap_track.get("soloed", False):
+                track_diff["soloed"] = track.soloed
+
+            # Parameters diff
+            snap_params = snap_track.get("parameters", {})
+            for p_key, p_val in track.parameters.items():
+                if p_key not in snap_params or abs(p_val - snap_params[p_key]) > 1e-3:
+                    if "parameters" not in track_diff:
+                        track_diff["parameters"] = {}
+                    track_diff["parameters"][p_key] = p_val
+
+            if track_diff:
+                diff[name] = {"action": "modified", "changes": track_diff}
+
+        for snap_name in snapshot.keys():
+            if snap_name not in self.tracks:
+                diff[snap_name] = {"action": "removed"}
+
+        return diff
+
+    def apply_state_diff(self, diff_dict):
+        """Applies an incremental patch dictionary to active session tracks."""
+        applied_changes = []
+        for name, change_data in diff_dict.items():
+            action = change_data.get("action")
+            if action == "removed":
+                if name in self.tracks:
+                    del self.tracks[name]
+                    applied_changes.append((f"/track/{name}/removed", 1.0))
+            elif action == "added":
+                state = change_data.get("state", {})
+                self.tracks[name] = TrackState.from_dict(state)
+                applied_changes.append((f"/track/{name}/added", 1.0))
+            elif action == "modified":
+                changes = change_data.get("changes", {})
+                track = self.get_or_create_track(name)
+                if "fader" in changes:
+                    track.fader = float(changes["fader"])
+                    applied_changes.append((f"/track/{name}/fader", track.fader))
+                if "muted" in changes:
+                    track.muted = bool(changes["muted"])
+                    applied_changes.append((f"/track/{name}/mute", 1.0 if track.muted else 0.0))
+                if "soloed" in changes:
+                    track.soloed = bool(changes["soloed"])
+                    applied_changes.append((f"/track/{name}/solo", 1.0 if track.soloed else 0.0))
+                for p_key, p_val in changes.get("parameters", {}).items():
+                    track.update_parameter(p_key, p_val)
+                    applied_changes.append((f"/track/{name}/{p_key}", float(p_val)))
+
+        if applied_changes:
+            self._save()
+        return applied_changes
+
     def reclassify_track_roles(self):
         """Re-evaluates role classification for every active track based on naming heuristic."""
         reclassified = {}

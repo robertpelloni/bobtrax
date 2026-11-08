@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.49] - 2026-03-30
+### Added
+- Session State Minimal Diff Calculation & Patch Application (`compute_state_diff`, `apply_state_diff`) in `session_memory.py`.
+- Exposed incremental patch synchronization in `bobui_bridge.py` and added "Sync Diff to Base" button in `gui_launcher.py`.
+- Automated unit test coverage `test_session_state_diff_and_patch` in `tests/test_ecosystem.py` (24/24 tests passing).
+
 ## [1.0.48] - 2026-03-30
 ### Added
 - Low-latency binary track state serialization (`serializeTrackStateBinary`, `deserializeTrackStateBinary`) in native C++ `BobUISessionBridge`.
