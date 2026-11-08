@@ -4,6 +4,9 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <cstdint>
+#include <cstring>
+#include <algorithm>
 
 struct BobUITrackDescriptor {
     std::string name;
@@ -31,6 +34,10 @@ public:
     bool saveCheckpoint(const std::string& name, const std::vector<BobUITrackDescriptor>& tracks);
     std::vector<BobUITrackDescriptor> restoreCheckpoint(const std::string& name);
     std::vector<BobUITrackDescriptor> undoLastAction();
+
+    // Low-Latency Binary Serialization for High-Speed Inter-DAW State Sync
+    static std::vector<uint8_t> serializeTrackStateBinary(const BobUITrackDescriptor& track);
+    static BobUITrackDescriptor deserializeTrackStateBinary(const std::vector<uint8_t>& bytes);
 
 private:
     std::map<std::string, std::vector<BobUITrackDescriptor>> m_checkpoints;

@@ -2,6 +2,9 @@
 #include <fstream>
 #include <sstream>
 #include <iostream>
+#include <cstdint>
+#include <cstring>
+#include <algorithm>
 
 bool BobUISessionBridge::exportSessionToArdour(const std::vector<BobUITrackDescriptor>& tracks, const std::string& out_path) {
     std::ofstream out(out_path);
@@ -97,6 +100,52 @@ std::vector<BobUITrackDescriptor> BobUISessionBridge::restoreCheckpoint(const st
         return it->second;
     }
     return {};
+}
+
+std::vector<uint8_t> BobUISessionBridge::serializeTrackStateBinary(const BobUITrackDescriptor& track) {
+    // Binary protocol layout:
+    // [1 byte: name_len][N bytes: name][4 bytes: fader float][1 byte: muted][1 byte: soloed]
+    std::vector<uint8_t> buffer;
+    uint8_t nameLen = static_cast<uint8_t>(std::min(track.name.length(), static_cast<size_t>(255)));
+    buffer.push_back(nameLen);
+    for (size_t i = 0; i < nameLen; ++i) {
+        buffer.push_back(static_cast<uint8_t>(track.name[i]));
+    }
+
+    uint8_t faderBytes[4];
+    std::memcpy(faderBytes, &track.fader, sizeof(float));
+    for (int i = 0; i < 4; ++i) {
+        buffer.push_back(faderBytes[i]);
+    }
+
+    buffer.push_back(track.muted ? 1 : 0);
+    buffer.push_back(track.soloed ? 1 : 0);
+    return buffer;
+}
+
+BobUITrackDescriptor BobUISessionBridge::deserializeTrackStateBinary(const std::vector<uint8_t>& bytes) {
+    BobUITrackDescriptor track;
+    if (bytes.size() < 7) {
+        return track;
+    }
+
+    uint8_t nameLen = bytes[0];
+    if (bytes.size() < static_cast<size_t>(1 + nameLen + 4 + 1 + 1)) {
+        return track;
+    }
+
+    track.name = std::string(reinterpret_cast<const char*>(&bytes[1]), nameLen);
+    size_t offset = 1 + nameLen;
+
+    std::memcpy(&track.fader, &bytes[offset], sizeof(float));
+    offset += 4;
+
+    track.muted = (bytes[offset] == 1);
+    offset += 1;
+
+    track.soloed = (bytes[offset] == 1);
+    track.role = "instrument";
+    return track;
 }
 
 std::vector<BobUITrackDescriptor> BobUISessionBridge::undoLastAction() {

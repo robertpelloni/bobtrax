@@ -307,6 +307,13 @@ class TestBobUISessionManagement(unittest.TestCase):
             bobui_bridge.undo_session_action(mem=mem)
             self.assertEqual(mem.tracks["vocals"].fader, 0.0)
 
+    def test_fast_sync_binary_state(self):
+        # Verify binary packing output
+        res = bobui_bridge.fast_sync_track_state("master", 0.0, False, False, socket_path="/tmp/nonexistent.sock")
+        self.assertEqual(res["status"], "error")
+        # 1 byte len + 6 bytes 'master' + 4 bytes float + 1 byte muted + 1 byte soloed = 13 bytes
+        self.assertEqual(res["packed_len"], 13)
+
 
 class TestDawRegistration(unittest.TestCase):
     def test_daw_heartbeat_and_active_filtering(self):

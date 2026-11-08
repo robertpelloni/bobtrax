@@ -14,6 +14,12 @@ All notable changes to this project will be documented in this file.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
 
+## [1.0.48] - 2026-03-30
+### Added
+- Low-latency binary track state serialization (`serializeTrackStateBinary`, `deserializeTrackStateBinary`) in native C++ `BobUISessionBridge`.
+- Python fast-sync binary encoder (`fast_sync_track_state`) in `bobui_bridge.py`.
+- Automated unit test coverage `test_fast_sync_binary_state` in `tests/test_ecosystem.py` (23/23 tests passing).
+
 ## [1.0.47] - 2026-03-30
 ### Added
 - Session Track Role Re-Inference and Consistency Check (`audit_session_consistency`, `reclassify_track_roles`) in `session_memory.py`.

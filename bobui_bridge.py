@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import socket
+import struct
 import sys
 
 import session_exporter
@@ -131,6 +132,27 @@ def audit_session_consistency(mem=None):
     """Audits session memory track parameters and role consistency."""
     target_mem = mem or session_memory.SessionMemory()
     return target_mem.audit_session_consistency()
+
+
+def fast_sync_track_state(track_name, fader=0.0, muted=False, soloed=False, socket_path=DEFAULT_SOCKET_PATH):
+    """Encodes track parameters into binary layout and transmits to Omni-Plugin bridge."""
+    name_bytes = track_name.encode("utf-8")[:255]
+    name_len = len(name_bytes)
+    # Format: [1B len][NB name][4B float fader][1B muted][1B soloed]
+    packed = struct.pack(f"!B{name_len}sf??", name_len, name_bytes, float(fader), bool(muted), bool(soloed))
+
+    if not os.path.exists(socket_path):
+        return {"status": "error", "message": "Socket not found", "packed_len": len(packed)}
+
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+            client.settimeout(0.5)
+            client.connect(socket_path)
+            # Binary command prefix
+            client.sendall(b"BIN_SYNC " + packed + b"\n")
+            return {"status": "ok", "packed_len": len(packed)}
+    except Exception as e:
+        return {"status": "error", "message": str(e), "packed_len": len(packed)}
 
 
 if __name__ == "__main__":
