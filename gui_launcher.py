@@ -1518,22 +1518,29 @@ class OmniDashboard(tk.Tk):
 
         dialog = tk.Toplevel(self)
         dialog.title("Session Checkpoint Manager")
-        dialog.geometry("400x240")
+        dialog.geometry("460x260")
         dialog.transient(self)
 
         tk.Label(dialog, text="Select Session Checkpoint:", font=("Helvetica", 9, "bold")).pack(pady=6)
-        combo = ttk.Combobox(dialog, values=checkpoints, state="readonly", width=32)
+        combo = ttk.Combobox(dialog, values=checkpoints, state="readonly", width=36)
         combo.set(checkpoints[-1])
         combo.pack(pady=2)
 
         info_lbl = tk.Label(dialog, text="", font=("Monospace", 8), fg="#7f848e")
-        info_lbl.pack(pady=4)
+        info_lbl.pack(pady=2)
+
+        lineage_lbl = tk.Label(dialog, text="", font=("Monospace", 7), fg="#abb2bf")
+        lineage_lbl.pack(pady=2)
 
         def _update_info(event=None):
             chosen = combo.get()
             details = mem.get_checkpoint_details(chosen)
             if details:
-                info_lbl.config(text=f"Tag: [{details.get('tag')}] | Tracks: {details.get('track_count')} | Saved: {details.get('time_str')}")
+                parent_str = f" <- {details.get('parent_checkpoint_id')}" if details.get('parent_checkpoint_id') else ""
+                info_lbl.config(text=f"Tag: [{details.get('tag')}] | Tracks: {details.get('track_count')}{parent_str} | Saved: {details.get('time_str')}")
+                lineage = mem.get_checkpoint_lineage(chosen)
+                chain = " -> ".join([item['checkpoint'] for item in reversed(lineage)])
+                lineage_lbl.config(text=f"Lineage: {chain}" if len(lineage) > 1 else "")
 
         combo.bind("<<ComboboxSelected>>", _update_info)
         _update_info()
@@ -1567,6 +1574,23 @@ class OmniDashboard(tk.Tk):
                     self.log(f"[Session Memory] Checkpoint '{chosen}' tagged as '{tag_win.strip()}'.")
                     _update_info()
 
+        def _do_fork():
+            chosen = combo.get()
+            if chosen:
+                branch_name = simpledialog.askstring("Fork Branch", f"Enter new checkpoint branch name from '{chosen}':")
+                if branch_name:
+                    b_clean = branch_name.strip().replace(" ", "_")
+                    tag_input = simpledialog.askstring("Branch Tag", "Enter tag for branch (optional, e.g. alternate_mix):")
+                    tag_val = tag_input.strip() if tag_input else f"branch_from_{chosen}"
+                    res = mem.fork_checkpoint(chosen, b_clean, branch_tag=tag_val)
+                    if res:
+                        self.log(f"[Checkpoint Branch] Forked new branch '{b_clean}' from '{chosen}' (tag: {tag_val}).")
+                        new_cps = mem.list_checkpoints()
+                        combo.config(values=new_cps)
+                        combo.set(b_clean)
+                        _update_info()
+                        self.refresh_session_memory()
+
         def _do_verify():
             chosen = combo.get()
             if chosen:
@@ -1595,6 +1619,7 @@ class OmniDashboard(tk.Tk):
         ttk.Button(btn_row, text="Restore", command=_do_restore).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Undo Restore", command=_do_undo_restore).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Verify", command=_do_verify).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Fork...", command=_do_fork).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Tag...", command=_do_tag).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Delete", command=_do_delete).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="left", padx=2)

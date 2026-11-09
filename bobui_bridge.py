@@ -288,6 +288,18 @@ def tag_session_checkpoint(name, tag, mem=None):
     return target_mem.tag_checkpoint(name, tag)
 
 
+def fork_session_checkpoint(source_checkpoint_id, new_checkpoint_name, branch_tag=None, mem=None):
+    """Forks a new divergent checkpoint branch from an existing checkpoint snapshot."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.fork_checkpoint(source_checkpoint_id, new_checkpoint_name, branch_tag)
+
+
+def get_checkpoint_lineage_bridge(checkpoint_id, mem=None):
+    """Returns ancestor lineage history for a checkpoint snapshot."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.get_checkpoint_lineage(checkpoint_id)
+
+
 def undo_session_action(mem=None):
     """Reverts the last mixing action recorded in session memory."""
     target_mem = mem or session_memory.SessionMemory()

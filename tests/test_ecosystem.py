@@ -963,5 +963,53 @@ class TestSessionDiffPatchExport(unittest.TestCase):
                 os.remove(temp_db)
 
 
+class TestCheckpointBranchingAndLineage(unittest.TestCase):
+    def test_fork_checkpoint_and_lineage(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            t = mem.get_or_create_track("lead_vox")
+            t.fader = -1.0
+            root_cp = mem.save_checkpoint("root_mix", tag="v1.0")
+
+            # Fork a branch
+            branch_cp = mem.fork_checkpoint(root_cp, "branch_experimental", branch_tag="experimental")
+            self.assertEqual(branch_cp, "branch_experimental")
+            self.assertIn("branch_experimental", mem.list_checkpoints())
+
+            # Validate details and parent pointer
+            details = mem.get_checkpoint_details("branch_experimental")
+            self.assertEqual(details["parent_checkpoint_id"], "root_mix")
+            self.assertEqual(details["tag"], "experimental")
+
+            # Modify branch by restoring and saving sub-branch
+            mem.restore_checkpoint("branch_experimental")
+            t.fader = -6.0
+            sub_branch = mem.save_checkpoint("sub_exp_v2", tag="exp_tweak", parent_checkpoint_id="branch_experimental")
+
+            # Check lineage chain: sub_exp_v2 -> branch_experimental -> root_mix
+            lineage = mem.get_checkpoint_lineage("sub_exp_v2")
+            self.assertEqual(len(lineage), 3)
+            self.assertEqual(lineage[0]["checkpoint"], "sub_exp_v2")
+            self.assertEqual(lineage[1]["checkpoint"], "branch_experimental")
+            self.assertEqual(lineage[2]["checkpoint"], "root_mix")
+            self.assertIsNone(lineage[2]["parent"])
+
+            # Test bridge wrappers
+            bridge_fork = bobui_bridge.fork_session_checkpoint("root_mix", "branch_bridge_test", branch_tag="bridge_tag", mem=mem)
+            self.assertEqual(bridge_fork, "branch_bridge_test")
+            bridge_lineage = bobui_bridge.get_checkpoint_lineage_bridge("branch_bridge_test", mem=mem)
+            self.assertEqual(len(bridge_lineage), 2)
+            self.assertEqual(bridge_lineage[0]["checkpoint"], "branch_bridge_test")
+            self.assertEqual(bridge_lineage[1]["checkpoint"], "root_mix")
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
 if __name__ == "__main__":
     unittest.main()

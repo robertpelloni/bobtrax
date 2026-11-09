@@ -588,17 +588,56 @@ class SessionMemory:
             "track": track.name
         }
 
-    def save_checkpoint(self, name, tag="milestone"):
+    def save_checkpoint(self, name, tag="milestone", parent_checkpoint_id=None):
         """Creates a named snapshot of current track states and parameters."""
         snapshot = {k: t.to_dict() for k, t in self.tracks.items()}
         self.checkpoints[name] = {
             "timestamp": time.time(),
             "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
             "tag": tag,
+            "parent_checkpoint_id": parent_checkpoint_id,
             "snapshot": snapshot
         }
         self._save()
         return name
+
+    def fork_checkpoint(self, source_checkpoint_id, new_checkpoint_name, branch_tag=None):
+        """Forks a new divergent checkpoint branch from an existing checkpoint snapshot."""
+        if source_checkpoint_id not in self.checkpoints:
+            return None
+
+        src_cp = self.checkpoints[source_checkpoint_id]
+        import copy
+        cloned_snapshot = copy.deepcopy(src_cp.get("snapshot", {}))
+        tag = branch_tag or f"branch_from_{source_checkpoint_id}"
+
+        self.checkpoints[new_checkpoint_name] = {
+            "timestamp": time.time(),
+            "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "tag": tag,
+            "parent_checkpoint_id": source_checkpoint_id,
+            "snapshot": cloned_snapshot
+        }
+        self._save()
+        return new_checkpoint_name
+
+    def get_checkpoint_lineage(self, checkpoint_id):
+        """Returns ordered ancestor chain from the given checkpoint back to root."""
+        lineage = []
+        curr = checkpoint_id
+        visited = set()
+        while curr and curr in self.checkpoints and curr not in visited:
+            visited.add(curr)
+            cp = self.checkpoints[curr]
+            lineage.append({
+                "checkpoint": curr,
+                "tag": cp.get("tag", "milestone"),
+                "timestamp": cp.get("timestamp"),
+                "time_str": cp.get("time_str"),
+                "parent": cp.get("parent_checkpoint_id")
+            })
+            curr = cp.get("parent_checkpoint_id")
+        return lineage
 
     def validate_checkpoint_integrity(self, name):
         """Validates that a saved checkpoint has uncorrupted tracks, finite numbers, and safe bounds."""
@@ -686,6 +725,7 @@ class SessionMemory:
             "timestamp": cp.get("timestamp"),
             "time_str": cp.get("time_str"),
             "tag": cp.get("tag", "milestone"),
+            "parent_checkpoint_id": cp.get("parent_checkpoint_id"),
             "track_count": len(cp.get("snapshot", {})),
             "tracks": list(cp.get("snapshot", {}).keys())
         }

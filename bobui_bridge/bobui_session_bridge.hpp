@@ -37,6 +37,8 @@ public:
     bool saveCheckpoint(const std::string& name, const std::vector<BobUITrackDescriptor>& tracks);
     std::vector<BobUITrackDescriptor> restoreCheckpoint(const std::string& name);
     bool deleteCheckpoint(const std::string& name);
+    bool forkCheckpoint(const std::string& srcId, const std::string& newName, const std::string& branchTag = "");
+    std::string getCheckpointParent(const std::string& id) const;
     std::vector<std::string> listCheckpoints() const;
     std::vector<BobUITrackDescriptor> undoLastAction();
     std::vector<BobUITrackDescriptor> redoSessionAction();
@@ -47,6 +49,8 @@ public:
 
 private:
     std::map<std::string, std::vector<BobUITrackDescriptor>> m_checkpoints;
+    std::map<std::string, std::string> m_checkpointParents;
+    std::map<std::string, std::string> m_checkpointTags;
     std::vector<std::vector<BobUITrackDescriptor>> m_undoHistory;
     std::vector<std::vector<BobUITrackDescriptor>> m_redoHistory;
 };

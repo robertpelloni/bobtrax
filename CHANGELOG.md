@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.71] - 2026-03-30
+### Added
+- `fork_checkpoint()` and `get_checkpoint_lineage()` in `session_memory.py` supporting branching snapshots with parent ancestor history.
+- `fork_session_checkpoint()` and `get_checkpoint_lineage_bridge()` gateways in `bobui_bridge.py`.
+- Native C++ `forkCheckpoint()` and `getCheckpointParent()` in `BobUISessionBridge`.
+- Interactive "Fork..." button and branch lineage display in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointBranchingAndLineage` in `tests/test_ecosystem.py`.
+
 ## [1.0.70] - 2026-03-30
 ### Added
 - `export_session_diff_patch()` in `session_exporter.py` exporting structured JSON diff patches between checkpoints or checkpoint vs live state.

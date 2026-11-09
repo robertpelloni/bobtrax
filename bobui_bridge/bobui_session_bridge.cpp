@@ -154,9 +154,30 @@ bool BobUISessionBridge::deleteCheckpoint(const std::string& name) {
     auto it = m_checkpoints.find(name);
     if (it != m_checkpoints.end()) {
         m_checkpoints.erase(it);
+        m_checkpointParents.erase(name);
+        m_checkpointTags.erase(name);
         return true;
     }
     return false;
+}
+
+bool BobUISessionBridge::forkCheckpoint(const std::string& srcId, const std::string& newName, const std::string& branchTag) {
+    auto it = m_checkpoints.find(srcId);
+    if (it == m_checkpoints.end()) {
+        return false;
+    }
+    m_checkpoints[newName] = it->second;
+    m_checkpointParents[newName] = srcId;
+    m_checkpointTags[newName] = branchTag.empty() ? ("branch_from_" + srcId) : branchTag;
+    return true;
+}
+
+std::string BobUISessionBridge::getCheckpointParent(const std::string& id) const {
+    auto it = m_checkpointParents.find(id);
+    if (it != m_checkpointParents.end()) {
+        return it->second;
+    }
+    return "";
 }
 
 std::vector<std::string> BobUISessionBridge::listCheckpoints() const {
