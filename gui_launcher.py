@@ -1591,6 +1591,48 @@ class OmniDashboard(tk.Tk):
                         _update_info()
                         self.refresh_session_memory()
 
+        def _do_merge_branch():
+            chosen = combo.get()
+            if chosen:
+                merge_dialog = tk.Toplevel(dialog)
+                merge_dialog.title("Merge Branch Checkpoint")
+                merge_dialog.geometry("380x200")
+                merge_dialog.transient(dialog)
+
+                tk.Label(merge_dialog, text=f"Merge Source: {chosen}", font=("Helvetica", 9, "bold")).pack(pady=4)
+
+                tk.Label(merge_dialog, text="Target (Checkpoint or Live State):").pack()
+                target_options = ["[Live Current Session]"] + [cp for cp in checkpoints if cp != chosen]
+                tgt_combo = ttk.Combobox(merge_dialog, values=target_options, state="readonly", width=30)
+                tgt_combo.set("[Live Current Session]")
+                tgt_combo.pack(pady=2)
+
+                tk.Label(merge_dialog, text="Conflict Strategy:").pack()
+                strat_combo = ttk.Combobox(merge_dialog, values=["merge_latest", "overwrite_remote", "keep_local"], state="readonly", width=20)
+                strat_combo.set("merge_latest")
+                strat_combo.pack(pady=2)
+
+                def _exec_merge():
+                    tgt_sel = tgt_combo.get()
+                    tgt_cp = None if tgt_sel == "[Live Current Session]" else tgt_sel
+                    strategy = strat_combo.get()
+
+                    rep = mem.merge_checkpoint_branch(chosen, tgt_cp, strategy=strategy)
+                    if rep.get("status") in ["success", "ok"]:
+                        if tgt_cp is None:
+                            for t_name, track in mem.tracks.items():
+                                self.send_osc_direct(f"/track/{t_name}/fader", track.fader)
+                            self.log(f"[Branch Merge] Successfully merged '{chosen}' into live session ({len(rep.get('changes_applied', []))} changes).")
+                        else:
+                            self.log(f"[Branch Merge] Successfully merged '{chosen}' into checkpoint '{tgt_cp}' ({len(rep.get('changes_applied', []))} changes).")
+                        merge_dialog.destroy()
+                        _update_info()
+                        self.refresh_session_memory()
+                    else:
+                        messagebox.showerror("Merge Failed", rep.get("message", "Error merging branch."))
+
+                ttk.Button(merge_dialog, text="Execute Merge", command=_exec_merge).pack(pady=10)
+
         def _do_verify():
             chosen = combo.get()
             if chosen:
@@ -1620,6 +1662,7 @@ class OmniDashboard(tk.Tk):
         ttk.Button(btn_row, text="Undo Restore", command=_do_undo_restore).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Verify", command=_do_verify).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Fork...", command=_do_fork).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Merge...", command=_do_merge_branch).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Tag...", command=_do_tag).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Delete", command=_do_delete).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="left", padx=2)

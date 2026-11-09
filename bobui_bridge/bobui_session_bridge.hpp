@@ -38,6 +38,7 @@ public:
     std::vector<BobUITrackDescriptor> restoreCheckpoint(const std::string& name);
     bool deleteCheckpoint(const std::string& name);
     bool forkCheckpoint(const std::string& srcId, const std::string& newName, const std::string& branchTag = "");
+    bool mergeCheckpointBranch(const std::string& srcId, const std::string& targetId);
     std::string getCheckpointParent(const std::string& id) const;
     std::vector<std::string> listCheckpoints() const;
     std::vector<BobUITrackDescriptor> undoLastAction();

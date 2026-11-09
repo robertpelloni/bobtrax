@@ -639,6 +639,50 @@ class SessionMemory:
             curr = cp.get("parent_checkpoint_id")
         return lineage
 
+    def merge_checkpoint_branch(self, source_checkpoint_id, target_checkpoint_id=None, strategy="merge_latest"):
+        """Merges a branch checkpoint's tracks into a target checkpoint or active live state."""
+        if source_checkpoint_id not in self.checkpoints:
+            return {"status": "error", "message": f"Source checkpoint '{source_checkpoint_id}' not found"}
+
+        source_tracks = self.checkpoints[source_checkpoint_id].get("snapshot", {})
+
+        if target_checkpoint_id is None:
+            # Merge directly into live session memory
+            report = self.resolve_session_conflict(source_tracks, strategy=strategy)
+            report["source_checkpoint"] = source_checkpoint_id
+            report["target"] = "live_session"
+            return report
+        else:
+            if target_checkpoint_id not in self.checkpoints:
+                return {"status": "error", "message": f"Target checkpoint '{target_checkpoint_id}' not found"}
+
+            target_tracks = self.checkpoints[target_checkpoint_id].get("snapshot", {})
+            import copy
+            merged_target = copy.deepcopy(target_tracks)
+
+            changes_applied = []
+            for t_name, s_data in source_tracks.items():
+                if t_name not in merged_target:
+                    merged_target[t_name] = copy.deepcopy(s_data)
+                    changes_applied.append({"track": t_name, "action": "added"})
+                else:
+                    t_tgt = merged_target[t_name]
+                    if strategy == "overwrite_remote" or (strategy == "merge_latest" and s_data.get("last_updated", 0) >= t_tgt.get("last_updated", 0)):
+                        merged_target[t_name] = copy.deepcopy(s_data)
+                        changes_applied.append({"track": t_name, "action": "updated"})
+
+            self.checkpoints[target_checkpoint_id]["snapshot"] = merged_target
+            self.checkpoints[target_checkpoint_id]["last_merged_from"] = source_checkpoint_id
+            self._save()
+            return {
+                "status": "success",
+                "source_checkpoint": source_checkpoint_id,
+                "target_checkpoint": target_checkpoint_id,
+                "strategy": strategy,
+                "changes_applied": changes_applied,
+                "merged_tracks_count": len(merged_target)
+            }
+
     def validate_checkpoint_integrity(self, name):
         """Validates that a saved checkpoint has uncorrupted tracks, finite numbers, and safe bounds."""
         if name not in self.checkpoints:

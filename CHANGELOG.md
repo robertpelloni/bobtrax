@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.72] - 2026-03-30
+### Added
+- `merge_checkpoint_branch()` in `session_memory.py` supporting branch merging into checkpoints or live state with conflict strategies (`merge_latest`, `overwrite_remote`, `keep_local`).
+- `merge_checkpoint_branch_bridge()` gateway in `bobui_bridge.py`.
+- Native C++ `mergeCheckpointBranch()` in `BobUISessionBridge`.
+- Interactive "Merge..." branch dialog in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointBranchMerging` in `tests/test_ecosystem.py`.
+
 ## [1.0.71] - 2026-03-30
 ### Added
 - `fork_checkpoint()` and `get_checkpoint_lineage()` in `session_memory.py` supporting branching snapshots with parent ancestor history.

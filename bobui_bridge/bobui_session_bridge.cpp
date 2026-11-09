@@ -172,6 +172,27 @@ bool BobUISessionBridge::forkCheckpoint(const std::string& srcId, const std::str
     return true;
 }
 
+bool BobUISessionBridge::mergeCheckpointBranch(const std::string& srcId, const std::string& targetId) {
+    auto srcIt = m_checkpoints.find(srcId);
+    auto tgtIt = m_checkpoints.find(targetId);
+    if (srcIt == m_checkpoints.end() || tgtIt == m_checkpoints.end()) {
+        return false;
+    }
+
+    auto& tgtTracks = tgtIt->second;
+    for (const auto& sTrack : srcIt->second) {
+        auto match = std::find_if(tgtTracks.begin(), tgtTracks.end(), [&](const BobUITrackDescriptor& d) {
+            return d.name == sTrack.name;
+        });
+        if (match == tgtTracks.end()) {
+            tgtTracks.push_back(sTrack);
+        } else {
+            *match = sTrack;
+        }
+    }
+    return true;
+}
+
 std::string BobUISessionBridge::getCheckpointParent(const std::string& id) const {
     auto it = m_checkpointParents.find(id);
     if (it != m_checkpointParents.end()) {

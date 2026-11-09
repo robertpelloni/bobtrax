@@ -1011,5 +1011,50 @@ class TestCheckpointBranchingAndLineage(unittest.TestCase):
                 os.remove(temp_db)
 
 
+class TestCheckpointBranchMerging(unittest.TestCase):
+    def test_merge_branch_into_checkpoint_and_live(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.tracks.clear()
+            tv = mem.get_or_create_track("vocals")
+            tv.fader = -2.0
+            mem.save_checkpoint("base_master")
+
+            # Fork a branch that modifies vocals and adds drums
+            mem.fork_checkpoint("base_master", "drum_experiment")
+            mem.restore_checkpoint("drum_experiment")
+            mem.tracks["vocals"].fader = -4.0
+            td = mem.get_or_create_track("drums")
+            td.fader = 0.5
+            mem.save_checkpoint("drum_experiment")
+
+            # 1. Test merging branch into another checkpoint
+            rep_cp = mem.merge_checkpoint_branch("drum_experiment", "base_master", strategy="overwrite_remote")
+            self.assertEqual(rep_cp["status"], "success")
+            self.assertEqual(rep_cp["merged_tracks_count"], 2)
+            base_snap = mem.checkpoints["base_master"]["snapshot"]
+            self.assertIn("drums", base_snap)
+            self.assertEqual(base_snap["vocals"]["fader"], -4.0)
+
+            # 2. Test merging branch into live session memory
+            # Reset live tracks to base
+            mem.restore_checkpoint("base_master")
+            self.assertEqual(mem.tracks["vocals"].fader, -4.0)
+            mem.tracks["vocals"].fader = 0.0
+
+            rep_live = bobui_bridge.merge_checkpoint_branch_bridge("drum_experiment", target_checkpoint_id=None, strategy="overwrite_remote", mem=mem)
+            self.assertEqual(rep_live["status"], "success")
+            self.assertEqual(mem.tracks["vocals"].fader, -4.0)
+            self.assertIn("drums", mem.tracks)
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
 if __name__ == "__main__":
     unittest.main()

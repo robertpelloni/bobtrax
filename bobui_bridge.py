@@ -300,6 +300,12 @@ def get_checkpoint_lineage_bridge(checkpoint_id, mem=None):
     return target_mem.get_checkpoint_lineage(checkpoint_id)
 
 
+def merge_checkpoint_branch_bridge(source_checkpoint_id, target_checkpoint_id=None, strategy="merge_latest", mem=None):
+    """Merges a checkpoint branch into a target checkpoint or active live state."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.merge_checkpoint_branch(source_checkpoint_id, target_checkpoint_id, strategy)
+
+
 def undo_session_action(mem=None):
     """Reverts the last mixing action recorded in session memory."""
     target_mem = mem or session_memory.SessionMemory()
