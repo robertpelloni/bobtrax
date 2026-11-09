@@ -829,5 +829,31 @@ class TestCheckpointIntegrityGuard(unittest.TestCase):
             self.assertFalse(ok)
 
 
+class TestCheckpointRestoreRollback(unittest.TestCase):
+    def test_revert_to_pre_restore_state(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            t = mem.get_or_create_track("lead_vox")
+            t.fader = -1.0
+            mem.save_checkpoint("cp_base")
+
+            # Alter track
+            t.fader = -8.5
+            self.assertEqual(mem.tracks["lead_vox"].fader, -8.5)
+
+            # Restore cp_base
+            ok = mem.restore_checkpoint("cp_base")
+            self.assertTrue(ok)
+            self.assertEqual(mem.tracks["lead_vox"].fader, -1.0)
+            self.assertIsNotNone(mem.pre_restore_backup)
+
+            # Undo Restore (revert to pre-restore state where fader was -8.5)
+            import bobui_bridge
+            reverted_ok = bobui_bridge.revert_pre_restore_bridge(mem=mem)
+            self.assertTrue(reverted_ok)
+            self.assertEqual(mem.tracks["lead_vox"].fader, -8.5)
+            self.assertIsNone(mem.pre_restore_backup)
+
+
 if __name__ == "__main__":
     unittest.main()

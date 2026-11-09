@@ -1539,9 +1539,22 @@ class OmniDashboard(tk.Tk):
                     info_lbl.config(text=f"⚠ Corrupt: {len(res['issues'])} issues found", fg="#e06c75")
                     self.log(f"[Checkpoint Integrity Error] '{chosen}': {res['issues']}")
 
+        def _do_undo_restore():
+            if mem.pre_restore_backup:
+                ok = mem.revert_to_pre_restore_state()
+                if ok:
+                    for t_name, track in mem.tracks.items():
+                        self.send_osc_direct(f"/track/{t_name}/fader", track.fader)
+                    self.log("[Session Memory] Successfully rolled back to pre-restore session state.")
+                    self.refresh_session_memory()
+                    dialog.destroy()
+            else:
+                messagebox.showinfo("Undo Restore", "No pre-restore backup available to rollback.")
+
         btn_row = tk.Frame(dialog)
         btn_row.pack(pady=10)
         ttk.Button(btn_row, text="Restore", command=_do_restore).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Undo Restore", command=_do_undo_restore).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Verify", command=_do_verify).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Tag...", command=_do_tag).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Delete", command=_do_delete).pack(side="left", padx=2)

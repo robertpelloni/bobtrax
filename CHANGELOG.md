@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.67] - 2026-03-30
+### Added
+- `revert_to_pre_restore_state()` in `session_memory.py` with automatic `pre_restore_backup` snapshotting on checkpoint restore.
+- `revert_pre_restore_bridge()` gateway in `bobui_bridge.py`.
+- "Undo Restore" rollback action in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointRestoreRollback` in `tests/test_ecosystem.py`.
+
 ## [1.0.66] - 2026-03-30
 ### Added
 - `validate_checkpoint_integrity()` in `session_memory.py` validating finite numbers, non-empty tracks, and safe bounds.

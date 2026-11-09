@@ -238,6 +238,12 @@ def restore_session_checkpoint(name, mem=None):
     return target_mem.restore_checkpoint(name)
 
 
+def revert_pre_restore_bridge(mem=None):
+    """Reverts session memory to the state immediately before the last checkpoint restore."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.revert_to_pre_restore_state()
+
+
 def validate_session_checkpoint(name, mem=None):
     """Validates structural integrity and physical parameter bounds of a saved checkpoint."""
     target_mem = mem or session_memory.SessionMemory()

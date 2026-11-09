@@ -121,6 +121,7 @@ class SessionMemory:
         self.tracks = {}
         self.action_history = []
         self.redo_history = []
+        self.pre_restore_backup = None
         self.checkpoints = {}
         self.omni_socket_path = DEFAULT_OMNI_SOCKET
         self.omni_synced_params = {}
@@ -639,8 +640,20 @@ class SessionMemory:
             logging.warning(f"Checkpoint '{name}' failed integrity check: {integrity.get('issues')}")
             return False
 
+        # Save pre-restore backup to support undoing checkpoint restoration
+        self.pre_restore_backup = {k: t.to_dict() for k, t in self.tracks.items()}
+
         data = self.checkpoints[name]["snapshot"]
         self.tracks = {k: TrackState.from_dict(v) for k, v in data.items()}
+        self._save()
+        return True
+
+    def revert_to_pre_restore_state(self):
+        """Reverts the session memory to the state immediately before the last checkpoint restore."""
+        if not self.pre_restore_backup:
+            return False
+        self.tracks = {k: TrackState.from_dict(v) for k, v in self.pre_restore_backup.items()}
+        self.pre_restore_backup = None
         self._save()
         return True
 
