@@ -1522,18 +1522,30 @@ class OmniDashboard(tk.Tk):
         def _do_tag():
             chosen = combo.get()
             if chosen:
-                tag_win = tk.simpledialog.askstring("Tag Checkpoint", f"Enter workflow tag for '{chosen}':")
+                tag_win = simpledialog.askstring("Tag Checkpoint", f"Enter workflow tag for '{chosen}':")
                 if tag_win:
                     mem.tag_checkpoint(chosen, tag_win.strip())
                     self.log(f"[Session Memory] Checkpoint '{chosen}' tagged as '{tag_win.strip()}'.")
                     _update_info()
 
+        def _do_verify():
+            chosen = combo.get()
+            if chosen:
+                res = mem.validate_checkpoint_integrity(chosen)
+                if res.get("valid"):
+                    info_lbl.config(text=f"✓ Verified: {res['track_count']} tracks healthy (params finite & bounded)", fg="#98c379")
+                    self.log(f"[Checkpoint Integrity] '{chosen}' verified healthy (all tracks within bounds).")
+                else:
+                    info_lbl.config(text=f"⚠ Corrupt: {len(res['issues'])} issues found", fg="#e06c75")
+                    self.log(f"[Checkpoint Integrity Error] '{chosen}': {res['issues']}")
+
         btn_row = tk.Frame(dialog)
         btn_row.pack(pady=10)
-        ttk.Button(btn_row, text="Restore", command=_do_restore).pack(side="left", padx=3)
-        ttk.Button(btn_row, text="Tag...", command=_do_tag).pack(side="left", padx=3)
-        ttk.Button(btn_row, text="Delete", command=_do_delete).pack(side="left", padx=3)
-        ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="left", padx=3)
+        ttk.Button(btn_row, text="Restore", command=_do_restore).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Verify", command=_do_verify).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Tag...", command=_do_tag).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Delete", command=_do_delete).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="left", padx=2)
 
     def audit_session_state(self):
         if not session_memory:

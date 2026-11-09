@@ -238,6 +238,12 @@ def restore_session_checkpoint(name, mem=None):
     return target_mem.restore_checkpoint(name)
 
 
+def validate_session_checkpoint(name, mem=None):
+    """Validates structural integrity and physical parameter bounds of a saved checkpoint."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.validate_checkpoint_integrity(name)
+
+
 def delete_session_checkpoint(name, mem=None):
     """Deletes a saved checkpoint from session memory."""
     target_mem = mem or session_memory.SessionMemory()

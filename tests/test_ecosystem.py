@@ -798,5 +798,36 @@ class TestCppSessionBridgeInterchange(unittest.TestCase):
             self.assertFalse(imported["subbass"]["frozen"])
 
 
+class TestCheckpointIntegrityGuard(unittest.TestCase):
+    def test_healthy_and_corrupt_checkpoint_validation(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            t = mem.get_or_create_track("lead_vox")
+            t.fader = -3.0
+            t.pan = -0.2
+            mem.save_checkpoint("healthy_cp")
+
+            # 1. Healthy checkpoint check
+            res_healthy = mem.validate_checkpoint_integrity("healthy_cp")
+            self.assertTrue(res_healthy["valid"])
+            self.assertEqual(len(res_healthy["issues"]), 0)
+
+            # Bridge validation
+            import bobui_bridge
+            res_bridge = bobui_bridge.validate_session_checkpoint("healthy_cp", mem=mem)
+            self.assertTrue(res_bridge["valid"])
+
+            # 2. Corrupt checkpoint: invalid fader
+            mem.save_checkpoint("corrupt_cp")
+            mem.checkpoints["corrupt_cp"]["snapshot"]["lead_vox"]["fader"] = 999.0  # Out of +12dB bounds
+            res_corrupt = mem.validate_checkpoint_integrity("corrupt_cp")
+            self.assertFalse(res_corrupt["valid"])
+            self.assertGreater(len(res_corrupt["issues"]), 0)
+
+            # 3. Restore safety: corrupt checkpoint must be rejected
+            ok = mem.restore_checkpoint("corrupt_cp")
+            self.assertFalse(ok)
+
+
 if __name__ == "__main__":
     unittest.main()

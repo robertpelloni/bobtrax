@@ -599,10 +599,46 @@ class SessionMemory:
         self._save()
         return name
 
+    def validate_checkpoint_integrity(self, name):
+        """Validates that a saved checkpoint has uncorrupted tracks, finite numbers, and safe bounds."""
+        if name not in self.checkpoints:
+            return {"valid": False, "reason": "Checkpoint not found", "issues": ["not_found"]}
+
+        snapshot = self.checkpoints[name].get("snapshot", {})
+        if not snapshot:
+            return {"valid": False, "reason": "Empty checkpoint snapshot", "issues": ["empty_snapshot"]}
+
+        issues = []
+        for t_name, t_data in snapshot.items():
+            if not isinstance(t_data, dict):
+                issues.append(f"{t_name}: corrupted record")
+                continue
+
+            fader = t_data.get("fader")
+            if fader is None or not isinstance(fader, (int, float)) or fader < -90.0 or fader > 12.0:
+                issues.append(f"{t_name}: invalid fader level ({fader})")
+
+            pan = t_data.get("pan", 0.0)
+            if not isinstance(pan, (int, float)) or pan < -1.0 or pan > 1.0:
+                issues.append(f"{t_name}: invalid pan position ({pan})")
+
+        return {
+            "valid": len(issues) == 0,
+            "track_count": len(snapshot),
+            "issues": issues,
+            "reason": "OK" if len(issues) == 0 else f"{len(issues)} validation failures"
+        }
+
     def restore_checkpoint(self, name):
         """Restores session memory to a previously saved checkpoint snapshot."""
         if name not in self.checkpoints:
             return False
+        # Verify integrity before restoring
+        integrity = self.validate_checkpoint_integrity(name)
+        if not integrity.get("valid"):
+            logging.warning(f"Checkpoint '{name}' failed integrity check: {integrity.get('issues')}")
+            return False
+
         data = self.checkpoints[name]["snapshot"]
         self.tracks = {k: TrackState.from_dict(v) for k, v in data.items()}
         self._save()

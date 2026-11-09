@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.66] - 2026-03-30
+### Added
+- `validate_checkpoint_integrity()` in `session_memory.py` validating finite numbers, non-empty tracks, and safe bounds.
+- `validate_session_checkpoint()` gateway in `bobui_bridge.py`.
+- Interactive "Verify" integrity inspection action in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointIntegrityGuard` in `tests/test_ecosystem.py`.
+
 ## [1.0.65] - 2026-03-30
 ### Added
 - Native C++ `importSessionFromLMMS()`, `deleteCheckpoint()`, and `listCheckpoints()` in `BobUISessionBridge`.
