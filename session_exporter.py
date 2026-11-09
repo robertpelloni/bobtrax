@@ -10,6 +10,7 @@ Exports Track Agent-Memory states into native project formats:
 
 import json
 import os
+import time
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as minidom
 
@@ -117,6 +118,27 @@ def export_manifest(tracks, output_path):
     with open(output_path, "w", encoding="utf-8") as f:
         json.dump(manifest, f, indent=2)
     return output_path
+
+
+def export_session_diff_patch(checkpoint_a, checkpoint_b, output_path, mem=None):
+    """Exports a structured JSON diff patch comparing two checkpoints or checkpoint vs live state."""
+    import session_memory
+    target_mem = mem or session_memory.SessionMemory()
+    diffs = target_mem.compare_session_snapshots(checkpoint_a, checkpoint_b)
+
+    patch_payload = {
+        "generator": "Bobtrax Session Diff Exporter",
+        "timestamp": time.time(),
+        "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "base_checkpoint": checkpoint_a,
+        "compare_checkpoint": checkpoint_b or "[Live Current State]",
+        "diff_count": len(diffs),
+        "differences": diffs
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(patch_payload, f, indent=2)
+    return patch_payload
 
 
 if __name__ == "__main__":

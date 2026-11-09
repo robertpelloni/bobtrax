@@ -1468,8 +1468,28 @@ class OmniDashboard(tk.Tk):
         combo_a.bind("<<ComboboxSelected>>", lambda e: _refresh_diff())
         combo_b.bind("<<ComboboxSelected>>", lambda e: _refresh_diff())
 
+        def _export_patch():
+            snap_a = combo_a.get()
+            target_b = combo_b.get()
+            snap_b = None if target_b == "[Live Current State]" else target_b
+
+            out_file = filedialog.asksaveasfilename(
+                title="Export Session Diff Patch",
+                defaultextension=".json",
+                filetypes=[("Diff Patch JSON", "*.json"), ("All Files", "*.*")]
+            )
+            if out_file:
+                try:
+                    import bobui_bridge
+                    bobui_bridge.export_diff_patch_bridge(snap_a, snap_b, out_file, mem=mem)
+                    self.log(f"[Diff Patch] Exported diff patch between '{snap_a}' and '{target_b}' to: {out_file}")
+                    messagebox.showinfo("Export Patch", f"Diff patch saved to:\n{out_file}")
+                except Exception as e:
+                    self.log(f"[Diff Patch Error] {e}")
+
         btn_row = tk.Frame(dialog, pady=6)
         btn_row.pack(fill="x")
+        ttk.Button(btn_row, text="Export Diff Patch...", command=_export_patch).pack(side="left", padx=8)
         ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="right", padx=8)
 
         # Initial render

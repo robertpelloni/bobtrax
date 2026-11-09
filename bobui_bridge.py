@@ -319,6 +319,11 @@ def compare_session_checkpoints(snap_a, snap_b=None, mem=None):
     return target_mem.compare_session_snapshots(snap_a, snap_b)
 
 
+def export_diff_patch_bridge(checkpoint_a, checkpoint_b, output_path, mem=None):
+    """Exports a portable JSON session difference patch to disk."""
+    return session_exporter.export_session_diff_patch(checkpoint_a, checkpoint_b, output_path, mem=mem)
+
+
 def transition_session(from_daw, to_daw, target_file_path=None, mem=None):
     """Executes state-preserved session transition between two member DAWs."""
     target_mem = mem or session_memory.SessionMemory()

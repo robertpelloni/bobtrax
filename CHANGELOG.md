@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.70] - 2026-03-30
+### Added
+- `export_session_diff_patch()` in `session_exporter.py` exporting structured JSON diff patches between checkpoints or checkpoint vs live state.
+- `export_diff_patch_bridge()` gateway in `bobui_bridge.py`.
+- "Export Diff Patch..." button in Checkpoint Visual Diff comparison dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionDiffPatchExport` in `tests/test_ecosystem.py`.
+
 ## [1.0.69] - 2026-03-30
 ### Added
 - `benchmark_headless_dsp_streaming()` in `bobui_bridge.py` evaluating mean latency and jitter across multi-buffer sizes.

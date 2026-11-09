@@ -894,5 +894,74 @@ class TestHeadlessDspStreamingBenchmark(unittest.TestCase):
             self.assertGreater(data["mean_latency_ms"], 0.0)
 
 
+class TestSessionDiffPatchExport(unittest.TestCase):
+    def test_export_session_diff_patch(self):
+        import session_memory
+        import session_exporter
+        import tempfile
+        import json
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            tv = mem.get_or_create_track("Vocal")
+            tv.fader = 0.8
+            tv.pan = -0.2
+            tv.muted = False
+            tv.solo = True
+            tv.frozen = False
+
+            tb = mem.get_or_create_track("Bass")
+            tb.fader = 0.5
+            tb.pan = 0.0
+            tb.muted = False
+            tb.solo = False
+            tb.frozen = False
+            c1 = mem.save_checkpoint("v1_mix", tag="base")
+
+            tv.fader = 0.9
+            tv.pan = 0.1
+            tv.muted = True
+            tv.solo = False
+            tv.frozen = True
+
+            td = mem.get_or_create_track("Drums")
+            td.fader = 0.7
+            td.pan = 0.0
+            td.muted = False
+            td.solo = False
+            td.frozen = False
+            c2 = mem.save_checkpoint("v2_mix", tag="drums_added")
+
+            out_patch = tempfile.mktemp(suffix=".json")
+            patch_data = session_exporter.export_session_diff_patch(c1, c2, out_patch, mem)
+
+            self.assertIsNotNone(patch_data)
+            self.assertEqual(patch_data["generator"], "Bobtrax Session Diff Exporter")
+            self.assertEqual(patch_data["base_checkpoint"], c1)
+            self.assertEqual(patch_data["compare_checkpoint"], c2)
+            self.assertGreater(patch_data["diff_count"], 0)
+
+            # Check that file exists on disk and is valid JSON matching return
+            with open(out_patch, "r", encoding="utf-8") as f:
+                disk_data = json.load(f)
+            self.assertEqual(disk_data["diff_count"], patch_data["diff_count"])
+            self.assertEqual(disk_data["base_checkpoint"], c1)
+
+            # Check bobui_bridge wrapper method
+            import bobui_bridge
+            out_patch2 = tempfile.mktemp(suffix=".json")
+            bridge_patch = bobui_bridge.export_diff_patch_bridge(c1, c2, out_patch2, mem)
+            self.assertEqual(bridge_patch["diff_count"], patch_data["diff_count"])
+
+            if os.path.exists(out_patch):
+                os.remove(out_patch)
+            if os.path.exists(out_patch2):
+                os.remove(out_patch2)
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
 if __name__ == "__main__":
     unittest.main()
