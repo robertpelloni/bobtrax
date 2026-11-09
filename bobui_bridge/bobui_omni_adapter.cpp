@@ -73,6 +73,37 @@ bool BobUIOmniAdapter::setParameter(const std::string& track_id, const std::stri
     return false;
 }
 
+bool BobUIOmniAdapter::bulkSyncTracksBinary(const std::vector<BobUITrackDescriptor>& tracks) {
+    if (tracks.empty()) {
+        return true;
+    }
+    if (!connect()) {
+        return false;
+    }
+
+    std::ostringstream ss;
+    ss << "BULK_SYNC ";
+    for (size_t i = 0; i < tracks.size(); ++i) {
+        if (i > 0) ss << ";";
+        ss << tracks[i].name << ":fader=" << tracks[i].fader << ",pan=" << tracks[i].pan;
+    }
+    ss << "\n";
+
+    std::string cmd = ss.str();
+    ssize_t sent = send(m_socketFd, cmd.c_str(), cmd.length(), 0);
+    if (sent < 0) {
+        disconnect();
+        return false;
+    }
+
+    char buf[512];
+    ssize_t received = recv(m_socketFd, buf, sizeof(buf) - 1, 0);
+    if (received > 0) {
+        return true;
+    }
+    return false;
+}
+
 std::map<std::string, float> BobUIOmniAdapter::getAllParameters() {
     std::map<std::string, float> result;
     if (!connect()) {

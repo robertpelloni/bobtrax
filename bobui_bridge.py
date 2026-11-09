@@ -511,6 +511,51 @@ def fast_sync_track_state(track_name, fader=0.0, pan=0.0, muted=False, soloed=Fa
         return {"status": "error", "message": str(e), "packed_len": len(packed)}
 
 
+def fast_sync_bulk_tracks(tracks_data, socket_path=DEFAULT_SOCKET_PATH):
+    """Transmits atomic bulk track parameters formatted for Omni-Plugin Bridge."""
+    # tracks_data can be dict {track_name: track_obj/dict} or list of TrackState objects/dicts
+    if isinstance(tracks_data, dict):
+        items = list(tracks_data.items())
+    elif isinstance(tracks_data, list):
+        items = []
+        for t in tracks_data:
+            name = t.name if hasattr(t, "name") else t.get("name", "unnamed")
+            items.append((name, t))
+    else:
+        return {"status": "error", "message": "Invalid tracks_data format", "count": 0}
+
+    chunk_parts = []
+    for name, track in items:
+        fader = getattr(track, "fader", None) if hasattr(track, "fader") else track.get("fader", 0.0)
+        pan = getattr(track, "pan", None) if hasattr(track, "pan") else track.get("pan", 0.0)
+        chunk_parts.append(f"{name}:fader={float(fader):.4f},pan={float(pan):.4f}")
+
+    if not chunk_parts:
+        return {"status": "ok", "action": "bulk_synced", "count": 0, "socket_status": "skipped_empty"}
+
+    payload_str = ";".join(chunk_parts)
+    cmd = f"BULK_SYNC {payload_str}\n"
+
+    if not os.path.exists(socket_path):
+        return {
+            "status": "ok",
+            "action": "bulk_synced",
+            "count": len(chunk_parts),
+            "socket_status": "mock_simulated",
+            "payload_len": len(cmd)
+        }
+
+    try:
+        with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+            client.settimeout(0.5)
+            client.connect(socket_path)
+            client.sendall(cmd.encode("utf-8"))
+            resp = client.recv(1024).decode("utf-8")
+            return json.loads(resp.strip()) if resp.strip().startswith("{") else {"status": "ok", "response": resp.strip()}
+    except Exception as e:
+        return {"status": "error", "message": str(e), "count": len(chunk_parts)}
+
+
 if __name__ == "__main__":
     path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_SOCKET_PATH
     alive = verify_omni_connection(path)

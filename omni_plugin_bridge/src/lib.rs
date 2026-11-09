@@ -101,6 +101,31 @@ impl OmniBridge {
                                             continue;
                                         }
                                     }
+                                } else if trimmed.starts_with("BULK_SYNC ") {
+                                    // Command: BULK_SYNC track1:fader=0.8,pan=-0.2;track2:fader=0.5,pan=0.0
+                                    let content = &trimmed[10..];
+                                    let mut count = 0;
+                                    let mut map = params_ref.lock().unwrap();
+                                    for track_block in content.split(';') {
+                                        let t_trimmed = track_block.trim();
+                                        if t_trimmed.is_empty() {
+                                            continue;
+                                        }
+                                        if let Some((track_id, params)) = t_trimmed.split_once(':') {
+                                            for pair in params.split(',') {
+                                                if let Some((p_name, p_val_str)) = pair.split_once('=') {
+                                                    if let Ok(val) = p_val_str.trim().parse::<f32>() {
+                                                        let key = format!("{}:{}", track_id.trim(), p_name.trim());
+                                                        map.insert(key, val);
+                                                        count += 1;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    let resp = format!("{{\"status\": \"ok\", \"action\": \"bulk_synced\", \"count\": {}}}\n", count);
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
                                 } else if trimmed.starts_with("PROCESS_AUDIO ") {
                                     // Command: PROCESS_AUDIO <num_frames> <gain>
                                     let parts: Vec<&str> = trimmed.split_whitespace().collect();

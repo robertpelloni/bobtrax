@@ -466,6 +466,10 @@ class OmniDashboard(tk.Tk):
         self.export_session_btn.pack(side="right", padx=2)
         ToolTip(self.export_session_btn, "Export current session state to Ardour (.ardour) or LMMS (.mmp) project files.")
 
+        self.bulk_fast_sync_btn = ttk.Button(mem_ctrl_bar, text="⚡ Fast Bulk Sync", command=self.fast_bulk_sync_action)
+        self.bulk_fast_sync_btn.pack(side="right", padx=2)
+        ToolTip(self.bulk_fast_sync_btn, "Atomically serialize and transmit entire session mixer state to Omni-Plugin bridge.")
+
         self.sync_manifest_btn = ttk.Button(mem_ctrl_bar, text="Sync to Bridge", command=self.sync_manifest_to_bridge)
         self.sync_manifest_btn.pack(side="right", padx=2)
         ToolTip(self.sync_manifest_btn, "Push full session layout and track states to Omni-Plugin Bridge host.")
@@ -1494,6 +1498,20 @@ class OmniDashboard(tk.Tk):
 
         # Initial render
         _refresh_diff()
+
+    def fast_bulk_sync_action(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        try:
+            import bobui_bridge
+            rep = bobui_bridge.fast_sync_bulk_tracks(mem.tracks)
+            status = rep.get("status", "unknown")
+            count = rep.get("count", len(mem.tracks))
+            mode = rep.get("socket_status", "live_ipc")
+            self.log(f"[Fast Bulk Sync] Serialized and transmitted {count} tracks to Omni-Plugin bridge (status: {status}, mode: {mode}).")
+        except Exception as e:
+            self.log(f"[Fast Bulk Sync Error] {e}")
 
     def sync_manifest_to_bridge(self):
         if not session_memory:

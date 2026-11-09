@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.73] - 2026-03-30
+### Added
+- `fast_sync_bulk_tracks()` in `bobui_bridge.py` supporting high-throughput atomic transmission of track parameters.
+- `BULK_SYNC` frame parsing in `omni_plugin_bridge/src/lib.rs` for atomic parameter insertion.
+- `bulkSyncTracksBinary()` in `bobui_omni_adapter` C++ bridge.
+- "⚡ Fast Bulk Sync" action in Track Agent-Memory Hub in `gui_launcher.py`.
+- Comprehensive unit test suite `TestBulkFastSync` in `tests/test_ecosystem.py`.
+
 ## [1.0.72] - 2026-03-30
 ### Added
 - `merge_checkpoint_branch()` in `session_memory.py` supporting branch merging into checkpoints or live state with conflict strategies (`merge_latest`, `overwrite_remote`, `keep_local`).

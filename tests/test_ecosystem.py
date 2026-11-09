@@ -1056,5 +1056,31 @@ class TestCheckpointBranchMerging(unittest.TestCase):
                 os.remove(temp_db)
 
 
+class TestBulkFastSync(unittest.TestCase):
+    def test_fast_sync_bulk_tracks_formatting_and_mock(self):
+        import bobui_bridge
+        import session_memory
+
+        tracks_dict = {
+            "vocal": {"fader": 0.85, "pan": -0.25},
+            "bass": {"fader": -3.0, "pan": 0.0},
+            "synth": {"fader": 0.0, "pan": 0.5}
+        }
+
+        # Test with mock non-existent socket (returns mock_simulated or skipped_empty)
+        rep = bobui_bridge.fast_sync_bulk_tracks(tracks_dict, socket_path="/tmp/nonexistent_bulk_sock.sock")
+        self.assertEqual(rep["status"], "ok")
+        self.assertEqual(rep["action"], "bulk_synced")
+        self.assertEqual(rep["count"], 3)
+        self.assertEqual(rep["socket_status"], "mock_simulated")
+        self.assertGreater(rep["payload_len"], 0)
+
+        # Test empty input
+        rep_empty = bobui_bridge.fast_sync_bulk_tracks({}, socket_path="/tmp/nonexistent_bulk_sock.sock")
+        self.assertEqual(rep_empty["status"], "ok")
+        self.assertEqual(rep_empty["count"], 0)
+        self.assertEqual(rep_empty["socket_status"], "skipped_empty")
+
+
 if __name__ == "__main__":
     unittest.main()
