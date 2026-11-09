@@ -1166,13 +1166,22 @@ class OmniDashboard(tk.Tk):
         if in_file:
             try:
                 mem = session_memory.SessionMemory()
+                fmt_desc = "Ardour Session"
                 if in_file.endswith(".mmp"):
                     imported = session_importer.import_from_lmms(in_file, mem)
+                    fmt_desc = "LMMS Project"
                 elif in_file.endswith(".json"):
                     imported = session_importer.import_from_manifest(in_file, mem)
+                    fmt_desc = "JSON Manifest"
                 else:
                     imported = session_importer.import_from_ardour(in_file, mem)
-                self.log(f"[Session Importer] Imported {len(imported)} tracks from {os.path.basename(in_file)}.")
+
+                pan_count = sum(1 for t in imported.values() if abs(t.get("pan", 0.0)) > 1e-3)
+                frozen_count = sum(1 for t in imported.values() if t.get("frozen"))
+                self.log(
+                    f"[Session Importer] Imported {len(imported)} tracks from {os.path.basename(in_file)} ({fmt_desc}). "
+                    f"Pan settings: {pan_count} | Frozen tracks: {frozen_count}."
+                )
                 self.refresh_session_memory()
             except Exception as e:
                 self.log(f"Import session error: {e}")
@@ -1260,13 +1269,20 @@ class OmniDashboard(tk.Tk):
         if out_file:
             try:
                 mem = session_memory.SessionMemory()
+                fmt_name = "Ardour XML"
                 if out_file.endswith(".mmp"):
                     session_exporter.export_to_lmms(mem.tracks, out_file)
+                    fmt_name = "LMMS XML"
                 elif out_file.endswith(".json"):
                     session_exporter.export_manifest(mem.tracks, out_file)
+                    fmt_name = "Universal JSON Manifest"
                 else:
                     session_exporter.export_to_ardour(mem.tracks, out_file)
-                self.log(f"[Session Exporter] Session exported successfully to: {out_file}")
+
+                self.log(
+                    f"[Session Exporter] {len(mem.tracks)} tracks exported successfully to {os.path.basename(out_file)} ({fmt_name}). "
+                    f"Saved path: {out_file}"
+                )
             except Exception as e:
                 self.log(f"Export session error: {e}")
 

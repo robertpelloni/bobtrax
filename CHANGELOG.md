@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.64] - 2026-03-30
+### Added
+- Pan and freeze attribute persistence in `session_exporter.py` and `session_importer.py` for Ardour and LMMS formats.
+- Complete metadata telemetry logging in `import_session_dialog` and `export_session_dialog` in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionExportImportExtended` in `tests/test_ecosystem.py`.
+
 ## [1.0.63] - 2026-03-30
 ### Added
 - Checkpoint tagging and deletion in `session_memory.py` (`tag_checkpoint`, `delete_checkpoint`).

@@ -42,19 +42,26 @@ def export_to_ardour(tracks, output_path):
         if t_name == "master":
             continue
         fader = getattr(t_state, "fader", 0.0) if hasattr(t_state, "fader") else t_state.get("fader", 0.0)
+        pan = getattr(t_state, "pan", 0.0) if hasattr(t_state, "pan") else t_state.get("pan", 0.0)
         muted = getattr(t_state, "muted", False) if hasattr(t_state, "muted") else t_state.get("muted", False)
         soloed = getattr(t_state, "soloed", False) if hasattr(t_state, "soloed") else t_state.get("soloed", False)
+        frozen = getattr(t_state, "frozen", False) if hasattr(t_state, "frozen") else t_state.get("frozen", False)
 
         route = ET.SubElement(routes, "Route", {
             "name": t_name.capitalize(),
             "default-type": "audio",
             "muted": "1" if muted else "0",
-            "soloed": "1" if soloed else "0"
+            "soloed": "1" if soloed else "0",
+            "frozen": "1" if frozen else "0"
         })
         controls = ET.SubElement(route, "Controls")
         ET.SubElement(controls, "Control", {
             "name": "gaincontrol",
             "value": str(fader)
+        })
+        ET.SubElement(controls, "Control", {
+            "name": "pancontrol",
+            "value": str(pan)
         })
 
     with open(output_path, "w", encoding="utf-8") as f:
@@ -76,14 +83,18 @@ def export_to_lmms(tracks, output_path):
     for t_name, t_state in tracks.items():
         if t_name == "master":
             continue
+        pan = getattr(t_state, "pan", 0.0) if hasattr(t_state, "pan") else t_state.get("pan", 0.0)
         muted = getattr(t_state, "muted", False) if hasattr(t_state, "muted") else t_state.get("muted", False)
         soloed = getattr(t_state, "soloed", False) if hasattr(t_state, "soloed") else t_state.get("soloed", False)
+        frozen = getattr(t_state, "frozen", False) if hasattr(t_state, "frozen") else t_state.get("frozen", False)
 
         ET.SubElement(trackcontainer, "track", {
             "name": t_name.capitalize(),
             "type": "0",  # Instrument track
+            "pan": str(int(pan * 100)),
             "muted": "1" if muted else "0",
-            "solo": "1" if soloed else "0"
+            "solo": "1" if soloed else "0",
+            "frozen": "1" if frozen else "0"
         })
 
     with open(output_path, "w", encoding="utf-8") as f:

@@ -34,28 +34,42 @@ def import_from_ardour(path, memory_hub=None):
         clean_name = re.sub(r'[^a-zA-Z0-9_-]', '', name).lower()
         muted = route.attrib.get("muted") == "1"
         soloed = route.attrib.get("soloed") == "1"
+        frozen = route.attrib.get("frozen") == "1"
 
-        # Find gain control if available
+        # Find gain and pan controls if available
         fader = 0.0
-        control = route.find(".//Control[@name='gaincontrol']")
-        if control is not None and "value" in control.attrib:
+        pan = 0.0
+        gain_ctrl = route.find(".//Control[@name='gaincontrol']")
+        if gain_ctrl is not None and "value" in gain_ctrl.attrib:
             try:
-                fader = float(control.attrib["value"])
+                fader = float(gain_ctrl.attrib["value"])
+            except ValueError:
+                pass
+
+        pan_ctrl = route.find(".//Control[@name='pancontrol']")
+        if pan_ctrl is not None and "value" in pan_ctrl.attrib:
+            try:
+                pan = float(pan_ctrl.attrib["value"])
             except ValueError:
                 pass
 
         imported_tracks[clean_name] = {
             "fader": fader,
+            "pan": pan,
             "muted": muted,
-            "soloed": soloed
+            "soloed": soloed,
+            "frozen": frozen
         }
 
         if memory_hub:
             t = memory_hub.get_or_create_track(clean_name)
             t.fader = fader
+            t.pan = pan
             t.muted = muted
             t.soloed = soloed
+            t.frozen = frozen
             t.update_parameter("fader", fader)
+            t.update_parameter("pan", pan)
 
     if memory_hub:
         memory_hub._save()
@@ -80,17 +94,28 @@ def import_from_lmms(path, memory_hub=None):
         clean_name = re.sub(r'[^a-zA-Z0-9_-]', '', name).lower()
         muted = track.attrib.get("muted") == "1"
         soloed = track.attrib.get("solo") == "1"
+        frozen = track.attrib.get("frozen") == "1"
+        pan_raw = track.attrib.get("pan", "0")
+        try:
+            pan = float(pan_raw) / 100.0
+        except ValueError:
+            pan = 0.0
 
         imported_tracks[clean_name] = {
             "fader": 0.0,
+            "pan": pan,
             "muted": muted,
-            "soloed": soloed
+            "soloed": soloed,
+            "frozen": frozen
         }
 
         if memory_hub:
             t = memory_hub.get_or_create_track(clean_name)
+            t.pan = pan
             t.muted = muted
             t.soloed = soloed
+            t.frozen = frozen
+            t.update_parameter("pan", pan)
 
     if memory_hub:
         memory_hub._save()

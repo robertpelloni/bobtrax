@@ -730,5 +730,42 @@ class TestCheckpointManagement(unittest.TestCase):
             self.assertNotIn("cp_mix_v1", mem.list_checkpoints())
 
 
+class TestSessionExportImportExtended(unittest.TestCase):
+    def test_pan_and_freeze_round_trip_ardour_and_lmms(self):
+        with tempfile.NamedTemporaryFile(suffix=".ardour") as tmp_ardour, \
+             tempfile.NamedTemporaryFile(suffix=".mmp") as tmp_lmms, \
+             tempfile.NamedTemporaryFile(suffix=".json") as tmp_json:
+
+            tracks = {
+                "rhythm_guitar": session_memory.TrackState(name="rhythm_guitar", role="guitar"),
+                "lead_guitar": session_memory.TrackState(name="lead_guitar", role="guitar")
+            }
+            tracks["rhythm_guitar"].fader = -4.5
+            tracks["rhythm_guitar"].pan = -0.75
+            tracks["rhythm_guitar"].frozen = True
+
+            tracks["lead_guitar"].fader = -2.0
+            tracks["lead_guitar"].pan = 0.5
+            tracks["lead_guitar"].frozen = False
+
+            # 1. Ardour Export & Import
+            session_exporter.export_to_ardour(tracks, tmp_ardour.name)
+            ardour_in = session_importer.import_from_ardour(tmp_ardour.name)
+            self.assertIn("rhythm_guitar", ardour_in)
+            self.assertAlmostEqual(ardour_in["rhythm_guitar"]["pan"], -0.75, places=2)
+            self.assertTrue(ardour_in["rhythm_guitar"]["frozen"])
+            self.assertAlmostEqual(ardour_in["lead_guitar"]["pan"], 0.5, places=2)
+            self.assertFalse(ardour_in["lead_guitar"]["frozen"])
+
+            # 2. LMMS Export & Import
+            session_exporter.export_to_lmms(tracks, tmp_lmms.name)
+            lmms_in = session_importer.import_from_lmms(tmp_lmms.name)
+            self.assertIn("rhythm_guitar", lmms_in)
+            self.assertAlmostEqual(lmms_in["rhythm_guitar"]["pan"], -0.75, places=2)
+            self.assertTrue(lmms_in["rhythm_guitar"]["frozen"])
+            self.assertAlmostEqual(lmms_in["lead_guitar"]["pan"], 0.5, places=2)
+            self.assertFalse(lmms_in["lead_guitar"]["frozen"])
+
+
 if __name__ == "__main__":
     unittest.main()
