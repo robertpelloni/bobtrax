@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.75] - 2026-03-30
+### Added
+- `get_session_synchronization_metrics()` in `session_memory.py` reporting cross-DAW health, active DAWs, track flags, and checkpoint lineage depth.
+- `get_session_synchronization_metrics_bridge()` gateway in `bobui_bridge.py`.
+- `getSessionMetrics()` in `BobUISessionBridge` C++ adapter.
+- Interactive "📊 Sync Health" dialog button in Track Agent-Memory Hub in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionSynchronizationMetrics` in `tests/test_ecosystem.py`.
+
 ## [1.0.74] - 2026-03-30
 ### Added
 - `verify_audio_buffer_loopback()` in `bobui_bridge.py` supporting audio buffer injection, peak, RMS energy, and latency measurements.

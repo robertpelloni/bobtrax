@@ -774,6 +774,45 @@ class SessionMemory:
             "tracks": list(cp.get("snapshot", {}).keys())
         }
 
+    def get_session_synchronization_metrics(self):
+        """Calculates aggregate cross-DAW session synchronization health and statistics."""
+        active_daws = self.get_active_daws(timeout=60.0)
+        total_tracks = len(self.tracks)
+
+        frozen_count = sum(1 for t in self.tracks.values() if t.frozen)
+        muted_count = sum(1 for t in self.tracks.values() if t.muted)
+        soloed_count = sum(1 for t in self.tracks.values() if t.soloed)
+
+        # Calculate fader and pan variance across active tracks
+        fader_levels = [t.fader for t in self.tracks.values()]
+        mean_fader = sum(fader_levels) / total_tracks if total_tracks > 0 else 0.0
+
+        checkpoint_count = len(self.checkpoints)
+        max_lineage_depth = 0
+        for cp_id in self.checkpoints:
+            depth = len(self.get_checkpoint_lineage(cp_id))
+            if depth > max_lineage_depth:
+                max_lineage_depth = depth
+
+        last_sync = max([t.last_updated for t in self.tracks.values()]) if self.tracks else time.time()
+
+        return {
+            "status": "healthy" if total_tracks > 0 else "empty",
+            "total_tracks": total_tracks,
+            "active_daws_count": len(active_daws),
+            "active_daws": list(active_daws.keys()),
+            "frozen_tracks_count": frozen_count,
+            "muted_tracks_count": muted_count,
+            "soloed_tracks_count": soloed_count,
+            "mean_fader_level": round(mean_fader, 2),
+            "checkpoint_count": checkpoint_count,
+            "max_lineage_depth": max_lineage_depth,
+            "action_history_depth": len(self.action_history),
+            "redo_history_depth": len(self.redo_history),
+            "last_sync_timestamp": last_sync,
+            "last_sync_str": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last_sync))
+        }
+
     def undo_last_action(self):
         """Reverts parameter changes introduced by the most recent AI mixing action."""
         if not self.action_history:

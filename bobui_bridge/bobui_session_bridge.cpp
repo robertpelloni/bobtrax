@@ -201,6 +201,15 @@ std::string BobUISessionBridge::getCheckpointParent(const std::string& id) const
     return "";
 }
 
+std::map<std::string, std::string> BobUISessionBridge::getSessionMetrics() const {
+    std::map<std::string, std::string> metrics;
+    metrics["checkpoints_count"] = std::to_string(m_checkpoints.size());
+    metrics["undo_depth"] = std::to_string(m_undoHistory.size());
+    metrics["redo_depth"] = std::to_string(m_redoHistory.size());
+    metrics["status"] = "healthy";
+    return metrics;
+}
+
 std::vector<std::string> BobUISessionBridge::listCheckpoints() const {
     std::vector<std::string> names;
     for (const auto& pair : m_checkpoints) {

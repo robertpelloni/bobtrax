@@ -1100,5 +1100,49 @@ class TestAudioBufferLoopback(unittest.TestCase):
         self.assertAlmostEqual(rep["latency_ms"], 10.67, delta=0.1)
 
 
+class TestSessionSynchronizationMetrics(unittest.TestCase):
+    def test_sync_metrics_calculation(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.tracks.clear()
+
+            tv = mem.get_or_create_track("vocals")
+            tv.fader = -1.5
+            tv.muted = True
+
+            tb = mem.get_or_create_track("bass")
+            tb.fader = 0.5
+            tb.frozen = True
+
+            mem.register_daw("ardour", port=3819)
+            mem.register_daw("lmms", port=8000)
+
+            c1 = mem.save_checkpoint("base_cp")
+            mem.fork_checkpoint(c1, "branch_cp")
+
+            metrics = mem.get_session_synchronization_metrics()
+            self.assertEqual(metrics["status"], "healthy")
+            self.assertEqual(metrics["total_tracks"], 2)
+            self.assertEqual(metrics["active_daws_count"], 2)
+            self.assertIn("ardour", metrics["active_daws"])
+            self.assertIn("lmms", metrics["active_daws"])
+            self.assertEqual(metrics["frozen_tracks_count"], 1)
+            self.assertEqual(metrics["muted_tracks_count"], 1)
+            self.assertEqual(metrics["checkpoint_count"], 2)
+            self.assertEqual(metrics["max_lineage_depth"], 2)
+
+            bridge_metrics = bobui_bridge.get_session_synchronization_metrics_bridge(mem=mem)
+            self.assertEqual(bridge_metrics["total_tracks"], 2)
+            self.assertEqual(bridge_metrics["status"], "healthy")
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -325,6 +325,12 @@ def audit_session_consistency(mem=None):
     return target_mem.audit_session_consistency()
 
 
+def get_session_synchronization_metrics_bridge(mem=None):
+    """Calculates aggregate cross-DAW session synchronization telemetry metrics."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.get_session_synchronization_metrics()
+
+
 def sync_session_diff(checkpoint_name, mem=None):
     """Calculates minimal parameter differences from checkpoint and pushes updates."""
     target_mem = mem or session_memory.SessionMemory()

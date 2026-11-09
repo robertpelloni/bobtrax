@@ -40,6 +40,7 @@ public:
     bool forkCheckpoint(const std::string& srcId, const std::string& newName, const std::string& branchTag = "");
     bool mergeCheckpointBranch(const std::string& srcId, const std::string& targetId);
     std::string getCheckpointParent(const std::string& id) const;
+    std::map<std::string, std::string> getSessionMetrics() const;
     std::vector<std::string> listCheckpoints() const;
     std::vector<BobUITrackDescriptor> undoLastAction();
     std::vector<BobUITrackDescriptor> redoSessionAction();

@@ -486,6 +486,10 @@ class OmniDashboard(tk.Tk):
         self.multi_daw_sync_btn.pack(side="right", padx=2)
         ToolTip(self.multi_daw_sync_btn, "Simultaneously push entire session state over binary socket & OSC to all active DAWs with echo suppression.")
 
+        self.sync_metrics_btn = ttk.Button(mem_ctrl_bar, text="📊 Sync Health", command=self.show_sync_health_dialog)
+        self.sync_metrics_btn.pack(side="right", padx=2)
+        ToolTip(self.sync_metrics_btn, "Inspect cross-DAW synchronization health, registered DAWs, and parameter variance metrics.")
+
         self.test_sync_loop_btn = ttk.Button(mem_ctrl_bar, text="Test Sync Loop", command=self.test_sync_loop_probe)
         self.test_sync_loop_btn.pack(side="right", padx=2)
         ToolTip(self.test_sync_loop_btn, "Probe circular feedback echo suppression and round-trip broadcast latency.")
@@ -1521,6 +1525,42 @@ class OmniDashboard(tk.Tk):
 
         # Initial render
         _refresh_diff()
+
+    def show_sync_health_dialog(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        metrics = mem.get_session_synchronization_metrics()
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Cross-DAW Session Sync Health Inspector")
+        dialog.geometry("450x300")
+        dialog.transient(self)
+
+        tk.Label(dialog, text="Session Synchronization Telemetry", font=("Helvetica", 10, "bold")).pack(pady=6)
+
+        info_frame = tk.Frame(dialog, padx=10, pady=6, bg="#21252b")
+        info_frame.pack(fill="both", expand=True, padx=8, pady=4)
+
+        rows = [
+            ("Sync Health Status:", metrics.get("status", "unknown").upper()),
+            ("Total Active Tracks:", f"{metrics.get('total_tracks')} tracks"),
+            ("Registered Active DAWs:", f"{metrics.get('active_daws_count')} ({', '.join(metrics.get('active_daws', [])) or 'None'})"),
+            ("Track Flags (F/M/S):", f"Frozen: {metrics.get('frozen_tracks_count')} | Muted: {metrics.get('muted_tracks_count')} | Solo: {metrics.get('soloed_tracks_count')}"),
+            ("Mean Fader Level:", f"{metrics.get('mean_fader_level'):.2f} dBFS"),
+            ("Checkpoints & Max Lineage:", f"{metrics.get('checkpoint_count')} checkpoints (max lineage depth: {metrics.get('max_lineage_depth')})"),
+            ("AI Undo / Redo Depths:", f"Undo: {metrics.get('action_history_depth')} | Redo: {metrics.get('redo_history_depth')}"),
+            ("Last Sync Timestamp:", f"{metrics.get('last_sync_str')}")
+        ]
+
+        for label_text, val_text in rows:
+            r = tk.Frame(info_frame, bg="#21252b")
+            r.pack(fill="x", pady=2)
+            tk.Label(r, text=label_text, font=("Helvetica", 8, "bold"), fg="#abb2bf", bg="#21252b", width=22, anchor="w").pack(side="left")
+            color = "#98c379" if "HEALTHY" in val_text else "#61afef"
+            tk.Label(r, text=val_text, font=("Monospace", 8), fg=color, bg="#21252b", anchor="w").pack(side="left", fill="x", expand=True)
+
+        ttk.Button(dialog, text="Close", command=dialog.destroy).pack(pady=8)
 
     def fast_bulk_sync_action(self):
         if not session_memory:
