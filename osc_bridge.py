@@ -73,6 +73,20 @@ OUTGOING_MAP = {
 clients = {}
 telemetry_client = None
 
+# Bridge routing counters and live transport state
+BRIDGE_STATS = {
+    "routed_messages": 0,
+    "raw_messages": 0,
+    "meter_packets": 0,
+    "transport_state": "stopped",
+    "bpm": 120.0
+}
+
+
+def get_bridge_telemetry_summary():
+    """Returns current message routing counters and transport state."""
+    return dict(BRIDGE_STATS)
+
 def send_telemetry(event_type, msg):
     """Sends telemetry string to dashboard UDP listener on port 8005."""
     global telemetry_client
@@ -84,6 +98,7 @@ def send_telemetry(event_type, msg):
 
 def emit_meter_packet(address, value):
     """Explicitly generates and routes a meter packet to session memory and telemetry."""
+    BRIDGE_STATS["meter_packets"] += 1
     if memory_hub:
         try:
             memory_hub.record_osc_change(address, float(value))
@@ -92,6 +107,7 @@ def emit_meter_packet(address, value):
     send_telemetry("METER", f"{address}:{value}")
 
 def broadcast_handler(address, *args):
+    global BRIDGE_STATS
     """
     Catches incoming OSC messages, checks for translations, and routes them.
     """
@@ -113,6 +129,11 @@ def broadcast_handler(address, *args):
     action = INCOMING_MAP.get(address)
 
     if action:
+        BRIDGE_STATS["routed_messages"] += 1
+        if action in ["play", "stop", "record"]:
+            BRIDGE_STATS["transport_state"] = action
+            send_telemetry("TRANSPORT", action)
+
         info_msg = f"Translated '{address}' -> '{action}'"
         logging.info(info_msg)
         send_telemetry("ROUTED", info_msg)
@@ -127,6 +148,7 @@ def broadcast_handler(address, *args):
                 except Exception as e:
                     logging.error(f"Failed to broadcast to {daw_name} - {e}")
     else:
+        BRIDGE_STATS["raw_messages"] += 1
         logging.debug(f"No translation found for {address}. Broadcasting raw address.")
         send_telemetry("RAW", f"Broadcast {address}: {args}")
         # Fallback: Just broadcast the raw address to everyone

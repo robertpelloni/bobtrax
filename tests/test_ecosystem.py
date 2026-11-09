@@ -855,5 +855,26 @@ class TestCheckpointRestoreRollback(unittest.TestCase):
             self.assertIsNone(mem.pre_restore_backup)
 
 
+class TestOscBridgeTransportFeedback(unittest.TestCase):
+    def test_transport_state_tracking_and_summary(self):
+        import osc_bridge
+        # Reset counters
+        osc_bridge.BRIDGE_STATS["routed_messages"] = 0
+        osc_bridge.BRIDGE_STATS["transport_state"] = "stopped"
+
+        # Dispatch simulated incoming play message
+        osc_bridge.broadcast_handler("/transport_play", 1.0)
+        self.assertEqual(osc_bridge.BRIDGE_STATS["transport_state"], "play")
+        self.assertGreater(osc_bridge.BRIDGE_STATS["routed_messages"], 0)
+
+        # Dispatch simulated stop message
+        osc_bridge.broadcast_handler("/transport_stop", 1.0)
+        self.assertEqual(osc_bridge.BRIDGE_STATS["transport_state"], "stop")
+
+        summary = osc_bridge.get_bridge_telemetry_summary()
+        self.assertEqual(summary["transport_state"], "stop")
+        self.assertIn("routed_messages", summary)
+
+
 if __name__ == "__main__":
     unittest.main()

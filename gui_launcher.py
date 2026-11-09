@@ -300,9 +300,11 @@ class OmniDashboard(tk.Tk):
         shortcuts_bar.pack(fill="x")
         tk.Label(shortcuts_bar, text="Quick Transport:", font=("Helvetica", 8, "bold"), fg="#555").pack(side="left", padx=(0, 6))
 
+        self.transport_btns = {}
         for action_name, label_txt, symbol in [("play", "Play", "▶ Play"), ("stop", "Stop", "⏹ Stop"), ("record", "Record", "⏺ Record")]:
             btn = ttk.Button(shortcuts_bar, text=symbol, command=lambda a=action_name: self.dispatch_transport(a), width=9)
             btn.pack(side="left", padx=2)
+            self.transport_btns[action_name] = btn
             ToolTip(btn, f"Send '{label_txt}' command through OSC Bridge to all active DAWs.")
 
         tk.Label(shortcuts_bar, text="| Macros:", font=("Helvetica", 8, "bold"), fg="#555").pack(side="left", padx=(6, 4))
@@ -837,6 +839,16 @@ class OmniDashboard(tk.Tk):
             x2 = int(wave_start_x + (i + 1) * step)
             self.vu_canvas.create_line(x1, y1, x2, y2, fill="#61dafb", width=1)
 
+    def _update_transport_feedback(self, state):
+        """Highlights the active transport button and logs state transition."""
+        self.log(f"[Transport Feedback] Global transport switched to: {state.upper()}")
+        for action, btn in getattr(self, "transport_btns", {}).items():
+            if action == state:
+                btn.config(text=f"• {action.upper()} •")
+            else:
+                symbols = {"play": "▶ Play", "stop": "⏹ Stop", "record": "⏺ Record"}
+                btn.config(text=symbols.get(action, action.capitalize()))
+
     def _update_meter_telemetry(self, peak_ratio):
         """Updates live VU meter and waveform history buffer from incoming bridge telemetry."""
         import math
@@ -905,6 +917,9 @@ class OmniDashboard(tk.Tk):
                                 self.after(0, lambda val=v: self._update_meter_telemetry(val))
                             except ValueError:
                                 pass
+                        elif "[TRANSPORT]" in text:
+                            st = text.replace("[TRANSPORT]", "").strip()
+                            self.after(0, lambda s=st: self._update_transport_feedback(s))
                         else:
                             clean_text = text.replace("/telemetry", "").strip()
                             self.after(0, lambda m=clean_text: self.log(f"[IPC Telemetry] {m}"))

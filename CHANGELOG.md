@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.68] - 2026-03-30
+### Added
+- `BRIDGE_STATS` routing counters and live transport state tracking (`get_bridge_telemetry_summary()`) in `osc_bridge.py`.
+- Real-time `TRANSPORT` telemetry events from `osc_bridge.py` reflected dynamically on transport buttons in `gui_launcher.py`.
+- Comprehensive unit test suite `TestOscBridgeTransportFeedback` in `tests/test_ecosystem.py`.
+
 ## [1.0.67] - 2026-03-30
 ### Added
 - `revert_to_pre_restore_state()` in `session_memory.py` with automatic `pre_restore_backup` snapshotting on checkpoint restore.
