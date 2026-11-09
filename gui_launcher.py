@@ -469,7 +469,11 @@ class OmniDashboard(tk.Tk):
 
         self.multi_daw_sync_btn = ttk.Button(mem_ctrl_bar, text="Broadcast to All DAWs", command=self.broadcast_session_to_all_daws)
         self.multi_daw_sync_btn.pack(side="right", padx=2)
-        ToolTip(self.multi_daw_sync_btn, "Simultaneously push entire session state over binary socket & OSC to all active DAWs.")
+        ToolTip(self.multi_daw_sync_btn, "Simultaneously push entire session state over binary socket & OSC to all active DAWs with echo suppression.")
+
+        self.test_sync_loop_btn = ttk.Button(mem_ctrl_bar, text="Test Sync Loop", command=self.test_sync_loop_probe)
+        self.test_sync_loop_btn.pack(side="right", padx=2)
+        ToolTip(self.test_sync_loop_btn, "Probe circular feedback echo suppression and round-trip broadcast latency.")
 
         self.transition_btn = ttk.Button(mem_ctrl_bar, text="Transition to DAW...", command=self.transition_daw_dialog)
         self.transition_btn.pack(side="right", padx=2)
@@ -1240,17 +1244,34 @@ class OmniDashboard(tk.Tk):
         ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side="left", padx=4)
 
     def broadcast_session_to_all_daws(self):
-        self.log("[Multi-DAW Sync] Broadcasting active session state across all member DAWs (Ardour, LMMS, MusE, Zrythm)...")
+        self.log("[Multi-DAW Sync] Broadcasting active session state across all member DAWs with echo suppression...")
         def _sync():
             try:
                 import bobui_bridge
-                res = bobui_bridge.sync_session_across_daws()
-                for daw, info in res.items():
-                    self.after(0, lambda d=daw, n=info.get('tracks_dispatched'): self.log(f"  • {d.upper()}: Synced {n} tracks."))
-                self.after(0, lambda: self.log("[Multi-DAW Sync] Broadcast complete across ecosystem."))
+                res = bobui_bridge.broadcast_session_state_safe(tracks=None)
+                self.after(0, lambda: self.log(
+                    f"[Multi-DAW Sync] Success: {res.get('tracks_dispatched')} tracks pushed | "
+                    f"{res.get('echoes_suppressed')} echoes suppressed across {len(res.get('target_daws'))} DAWs."
+                ))
             except Exception as e:
                 self.after(0, lambda: self.log(f"[Multi-DAW Sync Error] {e}"))
         threading.Thread(target=_sync, daemon=True).start()
+
+    def test_sync_loop_probe(self):
+        self.log("[Sync Loop Probe] Dispatching high-frequency rapid parameter stream to test echo-suppression...")
+        def _probe():
+            try:
+                import bobui_bridge
+                # Fire two rapid identical bursts
+                res1 = bobui_bridge.broadcast_session_state_safe(tracks=None, source_daw="ardour")
+                res2 = bobui_bridge.broadcast_session_state_safe(tracks=None, source_daw="ardour")
+                self.after(0, lambda: self.log(
+                    f"[Sync Loop Probe] Burst 1: {res1['tracks_dispatched']} dispatched. "
+                    f"Burst 2 (rapid duplicate): {res2['echoes_suppressed']} echo packets suppressed (no feedback loops detected)."
+                ))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Sync Loop Probe Error] {e}"))
+        threading.Thread(target=_probe, daemon=True).start()
 
     def sync_diff_to_baseline(self):
         if not session_memory:

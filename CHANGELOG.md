@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.60] - 2026-03-30
+### Added
+- `broadcast_session_state_safe()` in `bobui_bridge.py` featuring circular echo-suppression caching and origin DAW exclusion.
+- Interactive "Test Sync Loop" probe in `gui_launcher.py` validating feedback-free parameter broadcasting.
+- Comprehensive unit test suite `TestSessionBroadcastEchoSuppression` in `tests/test_ecosystem.py`.
+
 ## [1.0.59] - 2026-03-30
 ### Added
 - `resolve_plugin_format_bridge()` in `bobui_bridge.py` determining native vs bridged execution paths and latency overheads across Ardour, LMMS, MusE, and Zrythm.

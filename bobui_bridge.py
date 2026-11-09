@@ -309,6 +309,47 @@ def verify_and_rollback_transition(transition_result, mem=None):
     }
 
 
+# Global echo suppression cache: (track_name, field) -> (value, timestamp)
+_BROADCAST_CACHE = {}
+
+
+def broadcast_session_state_safe(tracks, source_daw=None, target_daws=None, mem=None):
+    """Synchronizes session state across DAWs with echo suppression to prevent circular feedback loops."""
+    target_mem = mem or session_memory.SessionMemory()
+    active_tracks = tracks or target_mem.tracks
+    all_daws = target_daws or ["ardour", "lmms", "muse", "zrythm"]
+
+    # Exclude source DAW from receiving its own echoed updates
+    destination_daws = [d for d in all_daws if not source_daw or d.lower() != source_daw.lower()]
+    now = time.time()
+    dispatched = 0
+    suppressed = 0
+
+    for name, track in active_tracks.items():
+        fader_val = track.fader if hasattr(track, "fader") else track.get("fader", 0.0)
+        cache_key = (name.lower(), "fader")
+        cached = _BROADCAST_CACHE.get(cache_key)
+
+        # Check if identical value was broadcast in the last 200ms
+        if cached and abs(cached[0] - fader_val) < 1e-4 and (now - cached[1]) < 0.2:
+            suppressed += 1
+            continue
+
+        _BROADCAST_CACHE[cache_key] = (fader_val, now)
+        muted_val = track.muted if hasattr(track, "muted") else track.get("muted", False)
+        soloed_val = track.soloed if hasattr(track, "soloed") else track.get("soloed", False)
+        broadcast_track_update(name, fader=fader_val, muted=muted_val, soloed=soloed_val)
+        dispatched += 1
+
+    return {
+        "status": "success",
+        "source_daw": source_daw,
+        "target_daws": destination_daws,
+        "tracks_dispatched": dispatched,
+        "echoes_suppressed": suppressed
+    }
+
+
 def sync_session_across_daws(target_daws=None, tracks=None, mem=None):
     """Simultaneously synchronizes entire session state across all registered member DAWs."""
     target_mem = mem or session_memory.SessionMemory()

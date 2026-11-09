@@ -633,5 +633,26 @@ class TestPluginFormatResolution(unittest.TestCase):
         self.assertIn("OmniComp_Pro", names)
 
 
+class TestSessionBroadcastEchoSuppression(unittest.TestCase):
+    def test_echo_suppression_and_origin_exclusion(self):
+        import bobui_bridge
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.get_or_create_track("synth").fader = -4.0
+
+            # First broadcast from ardour
+            res1 = bobui_bridge.broadcast_session_state_safe(tracks=mem.tracks, source_daw="ardour", mem=mem)
+            self.assertEqual(res1["status"], "success")
+            self.assertEqual(res1["source_daw"], "ardour")
+            self.assertNotIn("ardour", res1["target_daws"])
+            self.assertIn("lmms", res1["target_daws"])
+            self.assertGreater(res1["tracks_dispatched"], 0)
+
+            # Immediate identical second broadcast -> should suppress echoes
+            res2 = bobui_bridge.broadcast_session_state_safe(tracks=mem.tracks, source_daw="ardour", mem=mem)
+            self.assertGreater(res2["echoes_suppressed"], 0)
+            self.assertEqual(res2["tracks_dispatched"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()
