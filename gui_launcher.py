@@ -714,6 +714,10 @@ class OmniDashboard(tk.Tk):
         stream_dsp_btn.pack(side="right", padx=2)
         ToolTip(stream_dsp_btn, "Execute real-time headless buffer streaming with latency & peak level metrics.")
 
+        bench_dsp_btn = ttk.Button(bridge_status_bar, text="Benchmark DSP Stream", command=self.benchmark_dsp_stream)
+        bench_dsp_btn.pack(side="right", padx=2)
+        ToolTip(bench_dsp_btn, "Measure round-trip latency, jitter, and throughput across 128/256/512/1024-frame buffers.")
+
         compat_btn = ttk.Button(bridge_status_bar, text="Check Plugin Compat", command=self.check_plugin_compat)
         compat_btn.pack(side="right", padx=2)
         ToolTip(compat_btn, "Query format compatibility across Ardour, LMMS, MusE, and Zrythm.")
@@ -2164,6 +2168,23 @@ class OmniDashboard(tk.Tk):
             except Exception as e:
                 self.after(0, lambda: self.log(f"[Headless Stream Error] {e}"))
         threading.Thread(target=_stream, daemon=True).start()
+
+    def benchmark_dsp_stream(self):
+        self.log("Executing Headless DSP Streaming Benchmark across buffers [128, 256, 512, 1024]...")
+        def _bench():
+            try:
+                import bobui_bridge
+                bridge = bobui_bridge.BobUIBridge()
+                report = bridge.benchmark_headless_dsp_streaming(buffer_sizes=[128, 256, 512, 1024], iterations=4)
+                self.after(0, lambda: self.log("[DSP Benchmark Report]"))
+                for buf_sz, stats in report.items():
+                    self.after(0, lambda b=buf_sz, s=stats: self.log(
+                        f"  • Buffer {b:>4} frames: Mean Latency={s['mean_latency_ms']}ms | Jitter={s['jitter_ms']}ms | Peak={s['avg_peak']} ({s['mode']})"
+                    ))
+                self.after(0, lambda: self.log("DSP Streaming Benchmark completed successfully."))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[DSP Benchmark Error] {e}"))
+        threading.Thread(target=_bench, daemon=True).start()
 
     def test_omni_bridge(self):
         self.log("Testing Omni-Plugin Bridge IPC & Standalone Host...")

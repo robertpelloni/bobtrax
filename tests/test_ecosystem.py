@@ -876,5 +876,23 @@ class TestOscBridgeTransportFeedback(unittest.TestCase):
         self.assertIn("routed_messages", summary)
 
 
+class TestHeadlessDspStreamingBenchmark(unittest.TestCase):
+    def test_benchmark_execution_and_metrics(self):
+        import bobui_bridge
+        bridge = bobui_bridge.BobUIBridge(socket_path="/tmp/nonexistent_bench_socket.sock")
+        report = bridge.benchmark_headless_dsp_streaming(buffer_sizes=[128, 256, 512], iterations=3)
+
+        self.assertIn("128", report)
+        self.assertIn("256", report)
+        self.assertIn("512", report)
+
+        for b_sz, data in report.items():
+            self.assertIn("mean_latency_ms", data)
+            self.assertIn("jitter_ms", data)
+            self.assertIn("avg_peak", data)
+            self.assertEqual(data["mode"], "simulated")
+            self.assertGreater(data["mean_latency_ms"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

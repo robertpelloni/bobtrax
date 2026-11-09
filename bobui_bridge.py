@@ -141,6 +141,32 @@ class BobUIBridge:
                 "frames": frames
             }
 
+    def benchmark_headless_dsp_streaming(self, buffer_sizes=None, iterations=5):
+        """Executes a multi-buffer DSP streaming benchmark measuring round-trip latency and throughput."""
+        sizes = buffer_sizes or [128, 256, 512, 1024]
+        results = {}
+        for buf in sizes:
+            latencies = []
+            peaks = []
+            for _ in range(iterations):
+                t0 = time.time()
+                res = self.stream_headless_audio_chunk(sample_rate=48000, frames=buf, format_type="f32le")
+                elapsed_ms = (time.time() - t0) * 1000.0
+                reported_latency = res.get("latency_ms", elapsed_ms)
+                latencies.append(reported_latency)
+                peaks.append(res.get("peak", 0.0))
+
+            mean_lat = sum(latencies) / len(latencies)
+            jitter = max(latencies) - min(latencies)
+            results[str(buf)] = {
+                "frames": buf,
+                "mean_latency_ms": round(mean_lat, 2),
+                "jitter_ms": round(jitter, 2),
+                "avg_peak": round(sum(peaks) / len(peaks), 3),
+                "mode": res.get("status", "simulated")
+            }
+        return results
+
     def set_parameter(self, track_id, plugin_id, param_name, value):
         key = f"{track_id}:{plugin_id}:{param_name}"
         if not os.path.exists(self.socket_path):

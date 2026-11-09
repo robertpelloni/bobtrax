@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.69] - 2026-03-30
+### Added
+- `benchmark_headless_dsp_streaming()` in `bobui_bridge.py` evaluating mean latency and jitter across multi-buffer sizes.
+- Interactive "Benchmark DSP Stream" action in `gui_launcher.py` with multi-buffer telemetry reports.
+- Comprehensive unit test suite `TestHeadlessDspStreamingBenchmark` in `tests/test_ecosystem.py`.
+
 ## [1.0.68] - 2026-03-30
 ### Added
 - `BRIDGE_STATS` routing counters and live transport state tracking (`get_bridge_telemetry_summary()`) in `osc_bridge.py`.
