@@ -206,6 +206,12 @@ def sync_session_diff(checkpoint_name, mem=None):
     return diff
 
 
+def compare_session_checkpoints(snap_a, snap_b=None, mem=None):
+    """Returns fine-grained parameter diff list between two snapshots or against live memory."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.compare_session_snapshots(snap_a, snap_b)
+
+
 def transition_session(from_daw, to_daw, target_file_path=None, mem=None):
     """Executes state-preserved session transition between two member DAWs."""
     target_mem = mem or session_memory.SessionMemory()

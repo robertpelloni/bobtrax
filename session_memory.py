@@ -209,6 +209,86 @@ class SessionMemory:
 
         return diff
 
+    def compare_session_snapshots(self, snap_a_name, snap_b_name=None):
+        """Compares two snapshots, or one snapshot against current live state.
+
+        Returns a detailed list of parameter diffs:
+        [{track, field, old_val, new_val, change_type}]
+        """
+        if snap_a_name not in self.checkpoints:
+            return []
+
+        snap_a = self.checkpoints[snap_a_name]["snapshot"]
+        if snap_b_name and snap_b_name in self.checkpoints:
+            snap_b = self.checkpoints[snap_b_name]["snapshot"]
+        else:
+            # Compare against current live tracks
+            snap_b = {k: t.to_dict() for k, t in self.tracks.items()}
+
+        diffs = []
+        all_tracks = set(snap_a.keys()).union(set(snap_b.keys()))
+
+        for t_name in sorted(all_tracks):
+            if t_name not in snap_a:
+                diffs.append({
+                    "track": t_name,
+                    "field": "track",
+                    "old_val": "MISSING",
+                    "new_val": "PRESENT",
+                    "change_type": "added"
+                })
+                continue
+            if t_name not in snap_b:
+                diffs.append({
+                    "track": t_name,
+                    "field": "track",
+                    "old_val": "PRESENT",
+                    "new_val": "MISSING",
+                    "change_type": "removed"
+                })
+                continue
+
+            track_a = snap_a[t_name]
+            track_b = snap_b[t_name]
+
+            # Fader
+            f_a = track_a.get("fader", 0.0)
+            f_b = track_b.get("fader", 0.0)
+            if abs(f_a - f_b) > 1e-3:
+                diffs.append({
+                    "track": t_name,
+                    "field": "fader",
+                    "old_val": f_a,
+                    "new_val": f_b,
+                    "change_type": "modified"
+                })
+
+            # Muted
+            m_a = track_a.get("muted", False)
+            m_b = track_b.get("muted", False)
+            if m_a != m_b:
+                diffs.append({
+                    "track": t_name,
+                    "field": "muted",
+                    "old_val": m_a,
+                    "new_val": m_b,
+                    "change_type": "modified"
+                })
+
+            # Soloed
+            s_a = track_a.get("soloed", False)
+            s_b = track_b.get("soloed", False)
+            if s_a != s_b:
+                diffs.append({
+                    "track": t_name,
+                    "field": "soloed",
+                    "old_val": s_a,
+                    "new_val": s_b,
+                    "change_type": "modified"
+                })
+
+        return diffs
+
     def apply_state_diff(self, diff_dict):
         """Applies an incremental patch dictionary to active session tracks."""
         applied_changes = []

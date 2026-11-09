@@ -463,6 +463,10 @@ class OmniDashboard(tk.Tk):
         self.diff_sync_btn.pack(side="right", padx=2)
         ToolTip(self.diff_sync_btn, "Compute minimal state diff against baseline checkpoint and broadcast delta.")
 
+        self.compare_snaps_btn = ttk.Button(mem_ctrl_bar, text="Compare Checkpoints...", command=self.compare_checkpoints_dialog)
+        self.compare_snaps_btn.pack(side="right", padx=2)
+        ToolTip(self.compare_snaps_btn, "Inspect fine-grained visual parameter diffs between any two checkpoints or live state.")
+
         self.multi_daw_sync_btn = ttk.Button(mem_ctrl_bar, text="Broadcast to All DAWs", command=self.broadcast_session_to_all_daws)
         self.multi_daw_sync_btn.pack(side="right", padx=2)
         ToolTip(self.multi_daw_sync_btn, "Simultaneously push entire session state over binary socket & OSC to all active DAWs.")
@@ -1267,6 +1271,69 @@ class OmniDashboard(tk.Tk):
                 self.log(f"  • {t_name.upper()}: {chg}")
             # Stream diff to bridge
             mem.sync_session_manifest_to_bridge()
+
+    def compare_checkpoints_dialog(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        checkpoints = mem.list_checkpoints()
+        if not checkpoints:
+            messagebox.showinfo("Checkpoints", "No checkpoints saved to compare. Save snapshots first.")
+            return
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Checkpoint Visual Diff Inspector")
+        dialog.geometry("520x420")
+        dialog.transient(self)
+
+        top_ctrls = tk.Frame(dialog, padx=8, pady=8)
+        top_ctrls.pack(fill="x")
+
+        tk.Label(top_ctrls, text="Base:", font=("Helvetica", 9, "bold")).pack(side="left", padx=2)
+        combo_a = ttk.Combobox(top_ctrls, values=checkpoints, state="readonly", width=16)
+        combo_a.set(checkpoints[0])
+        combo_a.pack(side="left", padx=4)
+
+        tk.Label(top_ctrls, text="Compare With:", font=("Helvetica", 9, "bold")).pack(side="left", padx=2)
+        compare_options = ["[Live Current State]"] + checkpoints
+        combo_b = ttk.Combobox(top_ctrls, values=compare_options, state="readonly", width=18)
+        combo_b.set(compare_options[0])
+        combo_b.pack(side="left", padx=4)
+
+        # Diff results text box
+        diff_text = tk.Text(dialog, wrap="word", bg="#1e1e24", fg="#abb2bf", font=("Monospace", 9), padx=8, pady=8)
+        diff_text.pack(fill="both", expand=True, padx=8, pady=4)
+
+        def _refresh_diff():
+            diff_text.config(state="normal")
+            diff_text.delete("1.0", tk.END)
+            snap_a = combo_a.get()
+            target_b = combo_b.get()
+            snap_b = None if target_b == "[Live Current State]" else target_b
+
+            diffs = mem.compare_session_snapshots(snap_a, snap_b)
+            if not diffs:
+                diff_text.insert(tk.END, f"✓ Identical: No parameter differences between '{snap_a}' and '{target_b}'.\n")
+            else:
+                diff_text.insert(tk.END, f"=== Comparison: {snap_a} vs {target_b} ({len(diffs)} differences) ===\n\n")
+                for d in diffs:
+                    diff_text.insert(
+                        tk.END,
+                        f"• Track: {d['track'].upper():<12} | Field: {d['field']:<8} | "
+                        f"{d['old_val']} -> {d['new_val']} ({d['change_type']})\n"
+                    )
+            diff_text.config(state="disabled")
+
+        ttk.Button(top_ctrls, text="Inspect Diff", command=_refresh_diff).pack(side="left", padx=6)
+        combo_a.bind("<<ComboboxSelected>>", lambda e: _refresh_diff())
+        combo_b.bind("<<ComboboxSelected>>", lambda e: _refresh_diff())
+
+        btn_row = tk.Frame(dialog, pady=6)
+        btn_row.pack(fill="x")
+        ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="right", padx=8)
+
+        # Initial render
+        _refresh_diff()
 
     def sync_manifest_to_bridge(self):
         if not session_memory:

@@ -573,5 +573,38 @@ class TestHeadlessAudioStreaming(unittest.TestCase):
                 proc.wait()
 
 
+class TestSessionDiffComparison(unittest.TestCase):
+    def test_compare_checkpoints_and_live_state(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            t = mem.get_or_create_track("lead_vox")
+            t.fader = 0.0
+            t.muted = False
+            mem.save_checkpoint("snap_initial")
+
+            # Alter state
+            t.fader = -3.5
+            t.muted = True
+            mem.save_checkpoint("snap_modified")
+
+            # 1. Compare snap_initial vs snap_modified
+            diffs = mem.compare_session_snapshots("snap_initial", "snap_modified")
+            fields = {d["field"]: (d["old_val"], d["new_val"]) for d in diffs if d["track"] == "lead_vox"}
+            self.assertIn("fader", fields)
+            self.assertEqual(fields["fader"], (0.0, -3.5))
+            self.assertIn("muted", fields)
+            self.assertEqual(fields["muted"], (False, True))
+
+            # 2. Compare via bobui_bridge
+            import bobui_bridge
+            bridge_diffs = bobui_bridge.compare_session_checkpoints("snap_initial", "snap_modified", mem=mem)
+            self.assertEqual(len(bridge_diffs), len(diffs))
+
+            # 3. Compare snap_modified against live state
+            live_diffs = mem.compare_session_snapshots("snap_modified")
+            # Should be empty since live state matches snap_modified
+            self.assertEqual(len(live_diffs), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.58] - 2026-03-30
+### Added
+- `compare_session_snapshots()` in `session_memory.py` calculating fine-grained track parameter differences between any two checkpoints or against live state.
+- `compare_session_checkpoints()` gateway in `bobui_bridge.py`.
+- Interactive "Compare Checkpoints..." action button and `compare_checkpoints_dialog` inspector in `gui_launcher.py` with differential parameter rendering.
+- Comprehensive unit test suite `TestSessionDiffComparison` in `tests/test_ecosystem.py`.
+
 ## [1.0.57] - 2026-03-30
 ### Added
 - `STREAM_AUDIO_BLOCK` protocol command in `omni_plugin_bridge/src/lib.rs` supporting real-time sample rates, frame lengths, format types, peak detection, and latency tracking.
