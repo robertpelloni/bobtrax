@@ -654,5 +654,31 @@ class TestSessionBroadcastEchoSuppression(unittest.TestCase):
             self.assertEqual(res2["tracks_dispatched"], 0)
 
 
+class TestTrackFreezeEngine(unittest.TestCase):
+    def test_freeze_and_unfreeze_lifecycle(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            t = mem.get_or_create_track("pads")
+            self.assertFalse(t.frozen)
+
+            # Freeze
+            res_freeze = mem.freeze_track("pads", "/tmp/pads_offline.wav")
+            self.assertEqual(res_freeze["status"], "frozen")
+            self.assertTrue(mem.tracks["pads"].frozen)
+            self.assertEqual(mem.tracks["pads"].freeze_file, "/tmp/pads_offline.wav")
+
+            # Serialization round-trip
+            d = mem.tracks["pads"].to_dict()
+            self.assertTrue(d["frozen"])
+            restored = session_memory.TrackState.from_dict(d)
+            self.assertTrue(restored.frozen)
+
+            # BobUI Bridge unfreeze
+            import bobui_bridge
+            res_unfreeze = bobui_bridge.unfreeze_track_bridge("pads", mem=mem)
+            self.assertEqual(res_unfreeze["status"], "active")
+            self.assertFalse(mem.tracks["pads"].frozen)
+
+
 if __name__ == "__main__":
     unittest.main()

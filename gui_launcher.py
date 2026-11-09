@@ -981,28 +981,45 @@ class OmniDashboard(tk.Tk):
             scale.pack()
             ToolTip(scale, f"Adjust {t.upper()} fader gain (dB).")
 
-            # Mute & Solo Buttons
+            # Mute, Solo, and Freeze Buttons
             btn_row = tk.Frame(strip, bg="#282c34")
             btn_row.pack(fill="x", pady=2)
 
             mute_btn = tk.Button(
-                btn_row, text="M", width=2, font=("Helvetica", 7, "bold"),
+                btn_row, text="M", width=1, font=("Helvetica", 7, "bold"),
                 bg="#3a3f4b", fg="#fff", command=lambda name=t: self._toggle_track_mute(name)
             )
             mute_btn.pack(side="left", padx=1)
             ToolTip(mute_btn, f"Mute {t.upper()} track.")
 
             solo_btn = tk.Button(
-                btn_row, text="S", width=2, font=("Helvetica", 7, "bold"),
+                btn_row, text="S", width=1, font=("Helvetica", 7, "bold"),
                 bg="#3a3f4b", fg="#fff", command=lambda name=t: self._toggle_track_solo(name)
             )
             solo_btn.pack(side="left", padx=1)
             ToolTip(solo_btn, f"Solo {t.upper()} track.")
 
+            is_frozen = False
+            if session_memory:
+                try:
+                    is_frozen = getattr(session_memory.SessionMemory().tracks.get(t), "frozen", False)
+                except Exception:
+                    pass
+
+            freeze_btn = tk.Button(
+                btn_row, text="F", width=1, font=("Helvetica", 7, "bold"),
+                bg="#61dafb" if is_frozen else "#3a3f4b",
+                fg="#1e1e24" if is_frozen else "#fff",
+                command=lambda name=t: self._toggle_track_freeze(name)
+            )
+            freeze_btn.pack(side="left", padx=1)
+            ToolTip(freeze_btn, f"Freeze/Unfreeze {t.upper()} track (offline cache DSP rendering).")
+
             self.track_widgets[t] = {
                 "fader": scale,
                 "mute_btn": mute_btn,
                 "solo_btn": solo_btn,
+                "freeze_btn": freeze_btn,
                 "vu": vu
             }
 
@@ -1043,6 +1060,25 @@ class OmniDashboard(tk.Tk):
         except Exception:
             self.send_osc_direct(f"/track/{track_name}/solo", 1.0 if is_solo else 0.0)
         self.log(f"Track {track_name.upper()} {'SOLOED' if is_solo else 'UNSOLOED'}.")
+
+    def _toggle_track_freeze(self, track_name):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        track = mem.get_or_create_track(track_name)
+        w = self.track_widgets.get(track_name)
+        if track.frozen:
+            res = mem.unfreeze_track(track_name)
+            if w:
+                w["freeze_btn"].config(bg="#3a3f4b", fg="#fff")
+                w["fader"].config(state="normal")
+            self.log(f"[Track Freeze] Track '{track_name.upper()}' unfrozen. Real-time DSP active.")
+        else:
+            res = mem.freeze_track(track_name)
+            if w:
+                w["freeze_btn"].config(bg="#61dafb", fg="#1e1e24")
+                w["fader"].config(state="disabled")
+            self.log(f"[Track Freeze] Track '{track_name.upper()}' frozen to offline cache ({res['freeze_file']}).")
 
     def _on_plugin_cutoff_moved(self, val):
         track = self.plugin_track_combo.get() or "bass"

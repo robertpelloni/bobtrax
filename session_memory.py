@@ -52,6 +52,8 @@ class TrackState:
         self.peak_level = -60.0   # dBFS
         self.muted = False
         self.soloed = False
+        self.frozen = False
+        self.freeze_file = ""
         self.parameters = {}      # path suffix -> float value
         self.last_updated = time.time()
 
@@ -71,6 +73,8 @@ class TrackState:
             "peak_level": self.peak_level,
             "muted": self.muted,
             "soloed": self.soloed,
+            "frozen": self.frozen,
+            "freeze_file": self.freeze_file,
             "parameters": self.parameters,
             "last_updated": self.last_updated
         }
@@ -82,6 +86,8 @@ class TrackState:
         track.peak_level = data.get("peak_level", -60.0)
         track.muted = data.get("muted", False)
         track.soloed = data.get("soloed", False)
+        track.frozen = data.get("frozen", False)
+        track.freeze_file = data.get("freeze_file", "")
         track.parameters = data.get("parameters", {})
         track.last_updated = data.get("last_updated", time.time())
         return track
@@ -550,6 +556,31 @@ class SessionMemory:
         track.soloed = not track.soloed
         self._save()
         return track.soloed
+
+    def freeze_track(self, track_name, audio_path=None):
+        """Freezes a track, caching its rendered audio and bypassing real-time DSP load."""
+        track = self.get_or_create_track(track_name)
+        track.frozen = True
+        track.freeze_file = audio_path or f"/tmp/bobtrax_freeze_{track.name}.wav"
+        track.last_updated = time.time()
+        self._save()
+        return {
+            "status": "frozen",
+            "track": track.name,
+            "freeze_file": track.freeze_file
+        }
+
+    def unfreeze_track(self, track_name):
+        """Unfreezes a track, returning it to active real-time DSP synthesis/processing."""
+        track = self.get_or_create_track(track_name)
+        track.frozen = False
+        track.freeze_file = ""
+        track.last_updated = time.time()
+        self._save()
+        return {
+            "status": "active",
+            "track": track.name
+        }
 
     def save_checkpoint(self, name):
         """Creates a named snapshot of current track states and parameters."""

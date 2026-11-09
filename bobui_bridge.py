@@ -214,6 +214,18 @@ def merge_foreign_session(file_path, strategy="merge_latest", mem=None):
     return target_mem.resolve_session_conflict(imported_tracks, strategy=strategy)
 
 
+def freeze_track_bridge(track_name, audio_path=None, mem=None):
+    """Freezes a track in session memory to bypass DSP processing."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.freeze_track(track_name, audio_path)
+
+
+def unfreeze_track_bridge(track_name, mem=None):
+    """Unfreezes a track in session memory restoring real-time DSP state."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.unfreeze_track(track_name)
+
+
 def create_session_checkpoint(name, mem=None):
     """Saves a named snapshot checkpoint in session memory."""
     target_mem = mem or session_memory.SessionMemory()

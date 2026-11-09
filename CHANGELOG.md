@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.61] - 2026-03-30
+### Added
+- Multi-track freeze and offline cache engine in `session_memory.py` (`freeze_track`, `unfreeze_track`) with `frozen` and `freeze_file` attributes on `TrackState`.
+- `freeze_track_bridge()` and `unfreeze_track_bridge()` in `bobui_bridge.py`.
+- Interactive freeze toggle button ("F") on mixer channel strips in `gui_launcher.py` with fader locking.
+- Comprehensive unit test suite `TestTrackFreezeEngine` in `tests/test_ecosystem.py`.
+
 ## [1.0.60] - 2026-03-30
 ### Added
 - `broadcast_session_state_safe()` in `bobui_bridge.py` featuring circular echo-suppression caching and origin DAW exclusion.
