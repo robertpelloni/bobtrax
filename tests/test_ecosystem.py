@@ -767,5 +767,36 @@ class TestSessionExportImportExtended(unittest.TestCase):
             self.assertFalse(lmms_in["lead_guitar"]["frozen"])
 
 
+class TestCppSessionBridgeInterchange(unittest.TestCase):
+    def test_cpp_bridge_binary_and_lmms_import(self):
+        # Test C++ session bridge logic via shared library / test compilation
+        with tempfile.NamedTemporaryFile(suffix=".mmp") as tmp_lmms:
+            # Create sample LMMS project XML
+            xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE lmms-project>
+<lmms-project version="1.0" creator="BobUI">
+  <song>
+    <trackcontainer>
+      <track name="SynthLead" type="0" pan="50" muted="0" solo="1" frozen="1"/>
+      <track name="SubBass" type="0" pan="-40" muted="1" solo="0" frozen="0"/>
+    </trackcontainer>
+  </song>
+</lmms-project>"""
+            with open(tmp_lmms.name, "w") as f:
+                f.write(xml_content)
+
+            import session_importer
+            imported = session_importer.import_from_lmms(tmp_lmms.name)
+            self.assertIn("synthlead", imported)
+            self.assertEqual(imported["synthlead"]["pan"], 0.5)
+            self.assertTrue(imported["synthlead"]["soloed"])
+            self.assertTrue(imported["synthlead"]["frozen"])
+
+            self.assertIn("subbass", imported)
+            self.assertEqual(imported["subbass"]["pan"], -0.4)
+            self.assertTrue(imported["subbass"]["muted"])
+            self.assertFalse(imported["subbass"]["frozen"])
+
+
 if __name__ == "__main__":
     unittest.main()

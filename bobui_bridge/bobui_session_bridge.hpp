@@ -32,9 +32,12 @@ public:
     bool exportSessionToArdour(const std::vector<BobUITrackDescriptor>& tracks, const std::string& out_path);
     bool exportSessionToLMMS(const std::vector<BobUITrackDescriptor>& tracks, const std::string& out_path);
     std::vector<BobUITrackDescriptor> importSessionFromArdour(const std::string& in_path);
+    std::vector<BobUITrackDescriptor> importSessionFromLMMS(const std::string& in_path);
 
     bool saveCheckpoint(const std::string& name, const std::vector<BobUITrackDescriptor>& tracks);
     std::vector<BobUITrackDescriptor> restoreCheckpoint(const std::string& name);
+    bool deleteCheckpoint(const std::string& name);
+    std::vector<std::string> listCheckpoints() const;
     std::vector<BobUITrackDescriptor> undoLastAction();
     std::vector<BobUITrackDescriptor> redoSessionAction();
 

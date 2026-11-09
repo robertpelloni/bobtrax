@@ -311,6 +311,15 @@ class OmniDashboard(tk.Tk):
             b.pack(side="left", padx=2)
             ToolTip(b, f"Execute '{macro_cmd}' macro across session.")
 
+        tk.Label(shortcuts_bar, text="| Quick Snap:", font=("Helvetica", 8, "bold"), fg="#555").pack(side="left", padx=(6, 4))
+        quick_snap_btn = ttk.Button(shortcuts_bar, text="💾 Save Snap", command=self.quick_save_snapshot)
+        quick_snap_btn.pack(side="left", padx=2)
+        ToolTip(quick_snap_btn, "Immediately create timestamped checkpoint snapshot.")
+
+        quick_revert_btn = ttk.Button(shortcuts_bar, text="↺ Revert Base", command=self.quick_revert_baseline)
+        quick_revert_btn.pack(side="left", padx=2)
+        ToolTip(quick_revert_btn, "Instantly revert entire session state to baseline checkpoint.")
+
         # -------------------------------------------------------------
         # 3. Section: AI Production Suite (Mixing Assistant + Stem Separation)
         # -------------------------------------------------------------
@@ -1538,6 +1547,30 @@ class OmniDashboard(tk.Tk):
             for issue in res.get("issues_resolved"):
                 self.log(f"  • {issue}")
         self.refresh_session_memory()
+
+    def quick_save_snapshot(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        name = f"quick_snap_{int(time.time())}"
+        mem.save_checkpoint(name, tag="quick")
+        self.log(f"[Quick Snap] Checkpoint '{name}' saved successfully.")
+        self.refresh_session_memory()
+
+    def quick_revert_baseline(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        checkpoints = mem.list_checkpoints()
+        if not checkpoints:
+            self.log("[Quick Revert] No baseline checkpoint found.")
+            return
+        base = checkpoints[0]
+        if mem.restore_checkpoint(base):
+            for t_name, track in mem.tracks.items():
+                self.send_osc_direct(f"/track/{t_name}/fader", track.fader)
+            self.log(f"[Quick Revert] Session reverted to baseline checkpoint '{base}'.")
+            self.refresh_session_memory()
 
     def save_session_snapshot(self):
         if not session_memory:

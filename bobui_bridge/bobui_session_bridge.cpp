@@ -88,6 +88,53 @@ std::vector<BobUITrackDescriptor> BobUISessionBridge::importSessionFromArdour(co
     return result;
 }
 
+std::vector<BobUITrackDescriptor> BobUISessionBridge::importSessionFromLMMS(const std::string& in_path) {
+    std::vector<BobUITrackDescriptor> result;
+    std::ifstream in(in_path);
+    if (!in.is_open()) {
+        return result;
+    }
+
+    std::string line;
+    while (std::getline(in, line)) {
+        if (line.find("<track ") != std::string::npos) {
+            BobUITrackDescriptor track;
+            track.fader = 0.0f;
+            track.pan = 0.0f;
+            track.muted = false;
+            track.soloed = false;
+            track.frozen = false;
+            track.role = "instrument";
+
+            size_t namePos = line.find("name=\"");
+            if (namePos != std::string::npos) {
+                size_t endPos = line.find("\"", namePos + 6);
+                track.name = line.substr(namePos + 6, endPos - (namePos + 6));
+            }
+            if (line.find("muted=\"1\"") != std::string::npos) {
+                track.muted = true;
+            }
+            if (line.find("solo=\"1\"") != std::string::npos) {
+                track.soloed = true;
+            }
+            if (line.find("frozen=\"1\"") != std::string::npos) {
+                track.frozen = true;
+            }
+            size_t panPos = line.find("pan=\"");
+            if (panPos != std::string::npos) {
+                size_t endPos = line.find("\"", panPos + 5);
+                track.pan = std::stof(line.substr(panPos + 5, endPos - (panPos + 5))) / 100.0f;
+            }
+
+            if (!track.name.empty() && track.name != "master") {
+                result.push_back(track);
+            }
+        }
+    }
+
+    return result;
+}
+
 bool BobUISessionBridge::saveCheckpoint(const std::string& name, const std::vector<BobUITrackDescriptor>& tracks) {
     m_checkpoints[name] = tracks;
     m_undoHistory.push_back(tracks);
@@ -101,6 +148,23 @@ std::vector<BobUITrackDescriptor> BobUISessionBridge::restoreCheckpoint(const st
         return it->second;
     }
     return {};
+}
+
+bool BobUISessionBridge::deleteCheckpoint(const std::string& name) {
+    auto it = m_checkpoints.find(name);
+    if (it != m_checkpoints.end()) {
+        m_checkpoints.erase(it);
+        return true;
+    }
+    return false;
+}
+
+std::vector<std::string> BobUISessionBridge::listCheckpoints() const {
+    std::vector<std::string> names;
+    for (const auto& pair : m_checkpoints) {
+        names.push_back(pair.first);
+    }
+    return names;
 }
 
 std::vector<BobUITrackDescriptor> BobUISessionBridge::undoLastAction() {

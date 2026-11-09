@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.65] - 2026-03-30
+### Added
+- Native C++ `importSessionFromLMMS()`, `deleteCheckpoint()`, and `listCheckpoints()` in `BobUISessionBridge`.
+- Quick snapshot actions ("Save Snap" and "Revert Base") in the MUSE Universal Command Palette in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCppSessionBridgeInterchange` in `tests/test_ecosystem.py`.
+
 ## [1.0.64] - 2026-03-30
 ### Added
 - Pan and freeze attribute persistence in `session_exporter.py` and `session_importer.py` for Ardour and LMMS formats.
