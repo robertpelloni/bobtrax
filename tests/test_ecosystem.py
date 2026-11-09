@@ -606,5 +606,32 @@ class TestSessionDiffComparison(unittest.TestCase):
             self.assertEqual(len(live_diffs), 0)
 
 
+class TestPluginFormatResolution(unittest.TestCase):
+    def test_native_and_bridged_resolutions(self):
+        import bobui_bridge
+        # Ardour: LV2 is native, CLAP is bridged
+        ardour_lv2 = bobui_bridge.resolve_plugin_format_bridge("LV2", "ardour")
+        self.assertEqual(ardour_lv2["mode"], "NATIVE")
+        self.assertFalse(ardour_lv2["needs_bridge"])
+
+        ardour_clap = bobui_bridge.resolve_plugin_format_bridge("CLAP", "ardour")
+        self.assertEqual(ardour_clap["mode"], "BRIDGED")
+        self.assertTrue(ardour_clap["needs_bridge"])
+
+        # LMMS: VST2 is native, VST3 is bridged
+        lmms_vst2 = bobui_bridge.resolve_plugin_format_bridge("VST2", "lmms")
+        self.assertEqual(lmms_vst2["mode"], "NATIVE")
+
+        lmms_vst3 = bobui_bridge.resolve_plugin_format_bridge("VST3", "lmms")
+        self.assertEqual(lmms_vst3["mode"], "BRIDGED")
+
+    def test_scan_system_plugins(self):
+        import bobui_bridge
+        plugins = bobui_bridge.scan_system_plugins()
+        self.assertGreater(len(plugins), 3)
+        names = [p["name"] for p in plugins]
+        self.assertIn("OmniComp_Pro", names)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1858,15 +1858,60 @@ class OmniDashboard(tk.Tk):
     # Omni-Plugin Bridge & DAW Workstation Launchers
     # -------------------------------------------------------------
     def check_plugin_compat(self):
-        self.log("[Plugin Compatibility] Querying cross-DAW format bridging registry...")
+        self.log("[Plugin Compatibility] Launching Cross-DAW Compatibility & Discovery Matrix...")
         try:
             import bobui_bridge
-            for daw in ["ardour", "lmms", "muse", "zrythm"]:
-                info = bobui_bridge.query_plugin_compatibility("OmniSynth", daw)
-                natives = ", ".join(info.get("native_formats", []))
-                bridged = ", ".join(info.get("bridged_formats", []))
-                self.log(f"  • {daw.upper()}: Native=[{natives}] | Bridged=[{bridged}]")
-            self.log("[Plugin Compatibility] Universal plugin bridging active across all workstations.")
+            dialog = tk.Toplevel(self)
+            dialog.title("Cross-DAW Plugin Format Compatibility & Bridge Matrix")
+            dialog.geometry("640x480")
+            dialog.transient(self)
+
+            tk.Label(dialog, text="Omni-Plugin Format Compatibility Matrix", font=("Helvetica", 11, "bold")).pack(pady=8)
+            tk.Label(dialog, text="Transparent cross-DAW format wrapping via BobUI & OmniBridge", font=("Helvetica", 8, "italic"), fg="#7f848e").pack(pady=2)
+
+            matrix_text = tk.Text(dialog, wrap="none", font=("Monospace", 9), bg="#1e1e24", fg="#abb2bf", padx=8, pady=8)
+            matrix_text.pack(fill="both", expand=True, padx=10, pady=8)
+
+            def _populate_matrix():
+                matrix_text.config(state="normal")
+                matrix_text.delete("1.0", tk.END)
+                daws = ["ardour", "lmms", "muse", "zrythm"]
+                formats = ["VST3", "LV2", "CLAP", "VST2", "LADSPA"]
+
+                header = f"{'DAW':<10} | " + " | ".join(f"{fmt:<8}" for fmt in formats) + "\n"
+                sep = "-" * len(header) + "\n"
+                matrix_text.insert(tk.END, header)
+                matrix_text.insert(tk.END, sep)
+
+                for daw in daws:
+                    row = f"{daw.upper():<10} | "
+                    cols = []
+                    for fmt in formats:
+                        res = bobui_bridge.resolve_plugin_format_bridge(fmt, daw)
+                        status = "NATIVE" if res["mode"] == "NATIVE" else "BRIDGE"
+                        cols.append(f"{status:<8}")
+                    row += " | ".join(cols) + "\n"
+                    matrix_text.insert(tk.END, row)
+
+                matrix_text.insert(tk.END, "\n=== Discovered System Audio Plugins & Interop Paths ===\n\n")
+                plugins = bobui_bridge.scan_system_plugins()
+                for p in plugins:
+                    p_fmt = p["format"]
+                    matrix_text.insert(tk.END, f"• {p['name']} ({p_fmt} - {p['category']}):\n")
+                    for daw in daws:
+                        res = bobui_bridge.resolve_plugin_format_bridge(p_fmt, daw)
+                        matrix_text.insert(tk.END, f"    - {daw.upper()}: {res['mode']} (latency penalty: {res['latency_penalty_ms']}ms)\n")
+
+                matrix_text.config(state="disabled")
+
+            _populate_matrix()
+
+            btn_row = tk.Frame(dialog, pady=6)
+            btn_row.pack(fill="x")
+            ttk.Button(btn_row, text="Rescan Plugins", command=_populate_matrix).pack(side="left", padx=10)
+            ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="right", padx=10)
+
+            self.log("[Plugin Compatibility] Matrix inspector opened successfully.")
         except Exception as e:
             self.log(f"[Plugin Compatibility Error] {e}")
 

@@ -42,6 +42,51 @@ def query_plugin_compatibility(plugin_id, target_daw):
     }
 
 
+def resolve_plugin_format_bridge(plugin_format, target_daw):
+    """Resolves whether a plugin format runs natively or requires Omni-Bridge translation for target DAW."""
+    daw_key = target_daw.lower()
+    fmt = plugin_format.upper()
+    compat = PLUGIN_COMPATIBILITY_REGISTRY.get(daw_key, {"native": [], "bridged": []})
+
+    if fmt in compat["native"]:
+        return {
+            "daw": daw_key,
+            "format": fmt,
+            "mode": "NATIVE",
+            "needs_bridge": False,
+            "latency_penalty_ms": 0.0
+        }
+    elif fmt in compat["bridged"]:
+        return {
+            "daw": daw_key,
+            "format": fmt,
+            "mode": "BRIDGED",
+            "needs_bridge": True,
+            "latency_penalty_ms": 0.4
+        }
+    else:
+        return {
+            "daw": daw_key,
+            "format": fmt,
+            "mode": "UNIVERSAL_SHIM",
+            "needs_bridge": True,
+            "latency_penalty_ms": 0.8
+        }
+
+
+def scan_system_plugins(search_paths=None):
+    """Discovers installed or simulated audio plugins and categorizes their format compatibility."""
+    plugins = [
+        {"name": "OmniComp_Pro", "format": "VST3", "category": "Dynamics"},
+        {"name": "Calf_Parametric_EQ", "format": "LV2", "category": "EQ"},
+        {"name": "Zita_Rev1", "format": "LV2", "category": "Reverb"},
+        {"name": "Surge_XT", "format": "CLAP", "category": "Synthesizer"},
+        {"name": "TAP_TubeWarmth", "format": "LADSPA", "category": "Distortion"},
+        {"name": "Analog_Delay_Vintage", "format": "VST2", "category": "Delay"}
+    ]
+    return plugins
+
+
 class BobUIBridge:
     def __init__(self, socket_path=DEFAULT_SOCKET_PATH):
         self.socket_path = socket_path

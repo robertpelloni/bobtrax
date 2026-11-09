@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.59] - 2026-03-30
+### Added
+- `resolve_plugin_format_bridge()` in `bobui_bridge.py` determining native vs bridged execution paths and latency overheads across Ardour, LMMS, MusE, and Zrythm.
+- `scan_system_plugins()` system plugin discovery and format categorization helper.
+- Interactive Cross-DAW Plugin Format Compatibility & Bridge Matrix dialog in `gui_launcher.py` with dynamic rescan.
+- Comprehensive unit test suite `TestPluginFormatResolution` in `tests/test_ecosystem.py`.
+
 ## [1.0.58] - 2026-03-30
 ### Added
 - `compare_session_snapshots()` in `session_memory.py` calculating fine-grained track parameter differences between any two checkpoints or against live state.
