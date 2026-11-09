@@ -12,8 +12,10 @@ struct BobUITrackDescriptor {
     std::string name;
     std::string role;
     float fader;
+    float pan;
     bool muted;
     bool soloed;
+    bool frozen;
 };
 
 /**

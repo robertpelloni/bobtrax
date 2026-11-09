@@ -346,10 +346,10 @@ class TestBobUISessionManagement(unittest.TestCase):
 
     def test_fast_sync_binary_state(self):
         # Verify binary packing output
-        res = bobui_bridge.fast_sync_track_state("master", 0.0, False, False, socket_path="/tmp/nonexistent.sock")
+        res = bobui_bridge.fast_sync_track_state("master", fader=0.0, pan=0.0, muted=False, soloed=False, frozen=False, socket_path="/tmp/nonexistent.sock")
         self.assertEqual(res["status"], "error")
-        # 1 byte len + 6 bytes 'master' + 4 bytes float + 1 byte muted + 1 byte soloed = 13 bytes
-        self.assertEqual(res["packed_len"], 13)
+        # 1 byte len + 6 bytes 'master' + 4 bytes fader + 4 bytes pan + 1 byte muted + 1 byte soloed + 1 byte frozen = 18 bytes
+        self.assertEqual(res["packed_len"], 18)
 
     def test_bobui_broadcast_track_update(self):
         res = bobui_bridge.broadcast_track_update("kick", fader=-2.5, muted=False, soloed=True, socket_path="/tmp/nonexistent.sock")
@@ -678,6 +678,34 @@ class TestTrackFreezeEngine(unittest.TestCase):
             res_unfreeze = bobui_bridge.unfreeze_track_bridge("pads", mem=mem)
             self.assertEqual(res_unfreeze["status"], "active")
             self.assertFalse(mem.tracks["pads"].frozen)
+
+
+class TestBinarySerializationExtended(unittest.TestCase):
+    def test_fast_sync_extended_binary_packing(self):
+        import bobui_bridge
+        import struct
+
+        # Pack with fader=-2.5, pan=0.75, muted=True, soloed=False, frozen=True
+        name = "master_bus"
+        name_bytes = name.encode("utf-8")
+        name_len = len(name_bytes)
+        packed = struct.pack(f"!B{name_len}sff???", name_len, name_bytes, -2.5, 0.75, True, False, True)
+
+        expected_size = 1 + name_len + 4 + 4 + 1 + 1 + 1
+        self.assertEqual(len(packed), expected_size)
+
+        # Unpack and verify fields
+        unpacked_len = packed[0]
+        self.assertEqual(unpacked_len, name_len)
+        unpacked_name = packed[1:1+unpacked_len].decode("utf-8")
+        self.assertEqual(unpacked_name, "master_bus")
+
+        fader, pan, muted, soloed, frozen = struct.unpack("!ff???", packed[1+unpacked_len:])
+        self.assertAlmostEqual(fader, -2.5, places=3)
+        self.assertAlmostEqual(pan, 0.75, places=3)
+        self.assertTrue(muted)
+        self.assertFalse(soloed)
+        self.assertTrue(frozen)
 
 
 if __name__ == "__main__":

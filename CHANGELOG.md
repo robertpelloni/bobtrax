@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.62] - 2026-03-30
+### Added
+- Extended binary serialization layout with stereo pan and frozen flags in C++ `BobUISessionBridge` and Python `fast_sync_track_state`.
+- Added stereo pan scale to mixer channel strips in `gui_launcher.py` with live OSC and binary broadcast.
+- Added `pan` attribute to `TrackState` in `session_memory.py`.
+- Comprehensive unit test suite `TestBinarySerializationExtended` in `tests/test_ecosystem.py`.
+
 ## [1.0.61] - 2026-03-30
 ### Added
 - Multi-track freeze and offline cache engine in `session_memory.py` (`freeze_track`, `unfreeze_track`) with `frozen` and `freeze_file` attributes on `TrackState`.

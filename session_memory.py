@@ -49,6 +49,7 @@ class TrackState:
         self.name = name.lower()
         self.role = role.lower()
         self.fader = 0.0          # dB (-90 to +12)
+        self.pan = 0.0            # -1.0 (Left) to +1.0 (Right)
         self.peak_level = -60.0   # dBFS
         self.muted = False
         self.soloed = False
@@ -61,6 +62,8 @@ class TrackState:
         self.parameters[param_key] = float(value)
         if "fader" in param_key:
             self.fader = float(value)
+        elif "pan" in param_key:
+            self.pan = float(value)
         elif "meter" in param_key or "peak" in param_key:
             self.peak_level = float(value)
         self.last_updated = time.time()
@@ -70,6 +73,7 @@ class TrackState:
             "name": self.name,
             "role": self.role,
             "fader": self.fader,
+            "pan": self.pan,
             "peak_level": self.peak_level,
             "muted": self.muted,
             "soloed": self.soloed,
@@ -83,6 +87,7 @@ class TrackState:
     def from_dict(cls, data):
         track = cls(data.get("name", "track"), data.get("role", "generic"))
         track.fader = data.get("fader", 0.0)
+        track.pan = data.get("pan", 0.0)
         track.peak_level = data.get("peak_level", -60.0)
         track.muted = data.get("muted", False)
         track.soloed = data.get("soloed", False)

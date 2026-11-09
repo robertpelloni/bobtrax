@@ -981,6 +981,32 @@ class OmniDashboard(tk.Tk):
             scale.pack()
             ToolTip(scale, f"Adjust {t.upper()} fader gain (dB).")
 
+            # Pan Slider (L <-> R)
+            pan_val = 0.0
+            if session_memory:
+                try:
+                    pan_val = getattr(session_memory.SessionMemory().tracks[t], "pan", 0.0)
+                except Exception:
+                    pass
+
+            pan_scale = tk.Scale(
+                strip,
+                from_=-1.0,
+                to=1.0,
+                resolution=0.05,
+                orient="horizontal",
+                length=56,
+                bg="#282c34",
+                fg="#abb2bf",
+                highlightthickness=0,
+                troughcolor="#1e1e24",
+                font=("Monospace", 6),
+                command=lambda val, name=t: self._on_pan_moved(name, val)
+            )
+            pan_scale.set(pan_val)
+            pan_scale.pack(pady=1)
+            ToolTip(pan_scale, f"Stereo pan for {t.upper()} (-1.0 Left to +1.0 Right).")
+
             # Mute, Solo, and Freeze Buttons
             btn_row = tk.Frame(strip, bg="#282c34")
             btn_row.pack(fill="x", pady=2)
@@ -1017,6 +1043,7 @@ class OmniDashboard(tk.Tk):
 
             self.track_widgets[t] = {
                 "fader": scale,
+                "pan": pan_scale,
                 "mute_btn": mute_btn,
                 "solo_btn": solo_btn,
                 "freeze_btn": freeze_btn,
@@ -1032,6 +1059,18 @@ class OmniDashboard(tk.Tk):
             bobui_bridge.broadcast_track_update(track_name, fader=val)
         except Exception:
             self.send_osc_direct(f"/track/{track_name}/fader", val)
+
+    def _on_pan_moved(self, track_name, value):
+        val = float(value)
+        if session_memory:
+            t = session_memory.SessionMemory().get_or_create_track(track_name)
+            t.pan = val
+            t.update_parameter("pan", val)
+        try:
+            import bobui_bridge
+            bobui_bridge.broadcast_track_update(track_name, pan=val)
+        except Exception:
+            self.send_osc_direct(f"/track/{track_name}/pan", val)
 
     def _toggle_track_mute(self, track_name):
         if not session_memory:

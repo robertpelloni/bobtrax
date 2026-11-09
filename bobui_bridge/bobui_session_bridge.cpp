@@ -125,7 +125,7 @@ std::vector<BobUITrackDescriptor> BobUISessionBridge::redoSessionAction() {
 
 std::vector<uint8_t> BobUISessionBridge::serializeTrackStateBinary(const BobUITrackDescriptor& track) {
     // Binary protocol layout:
-    // [1 byte: name_len][N bytes: name][4 bytes: fader float][1 byte: muted][1 byte: soloed]
+    // [1 byte: name_len][N bytes: name][4 bytes: fader float][4 bytes: pan float][1 byte: muted][1 byte: soloed][1 byte: frozen]
     std::vector<uint8_t> buffer;
     uint8_t nameLen = static_cast<uint8_t>(std::min(track.name.length(), static_cast<size_t>(255)));
     buffer.push_back(nameLen);
@@ -139,13 +139,26 @@ std::vector<uint8_t> BobUISessionBridge::serializeTrackStateBinary(const BobUITr
         buffer.push_back(faderBytes[i]);
     }
 
+    uint8_t panBytes[4];
+    std::memcpy(panBytes, &track.pan, sizeof(float));
+    for (int i = 0; i < 4; ++i) {
+        buffer.push_back(panBytes[i]);
+    }
+
     buffer.push_back(track.muted ? 1 : 0);
     buffer.push_back(track.soloed ? 1 : 0);
+    buffer.push_back(track.frozen ? 1 : 0);
     return buffer;
 }
 
 BobUITrackDescriptor BobUISessionBridge::deserializeTrackStateBinary(const std::vector<uint8_t>& bytes) {
     BobUITrackDescriptor track;
+    track.fader = 0.0f;
+    track.pan = 0.0f;
+    track.muted = false;
+    track.soloed = false;
+    track.frozen = false;
+
     if (bytes.size() < 7) {
         return track;
     }
@@ -161,10 +174,22 @@ BobUITrackDescriptor BobUISessionBridge::deserializeTrackStateBinary(const std::
     std::memcpy(&track.fader, &bytes[offset], sizeof(float));
     offset += 4;
 
+    // Check if extended layout with pan and frozen is present
+    if (bytes.size() >= offset + 4 + 3) {
+        std::memcpy(&track.pan, &bytes[offset], sizeof(float));
+        offset += 4;
+    }
+
     track.muted = (bytes[offset] == 1);
     offset += 1;
 
     track.soloed = (bytes[offset] == 1);
+    offset += 1;
+
+    if (bytes.size() >= offset + 1) {
+        track.frozen = (bytes[offset] == 1);
+    }
+
     track.role = "instrument";
     return track;
 }

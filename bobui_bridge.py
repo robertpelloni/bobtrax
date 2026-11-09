@@ -382,15 +382,17 @@ def sync_session_across_daws(target_daws=None, tracks=None, mem=None):
     return results
 
 
-def broadcast_track_update(track_name, fader=None, muted=None, soloed=None, osc_bridge_port=8000, socket_path=DEFAULT_SOCKET_PATH):
+def broadcast_track_update(track_name, fader=None, pan=None, muted=None, soloed=None, frozen=None, osc_bridge_port=8000, socket_path=DEFAULT_SOCKET_PATH):
     """Simultaneously dispatches track updates over low-latency binary socket and UDP OSC."""
     results = {}
     # 1. Low-latency binary socket sync
-    if fader is not None or muted is not None or soloed is not None:
+    if any(v is not None for v in (fader, pan, muted, soloed, frozen)):
         f_val = fader if fader is not None else 0.0
+        p_val = pan if pan is not None else 0.0
         m_val = muted if muted is not None else False
         s_val = soloed if soloed is not None else False
-        results["socket_sync"] = fast_sync_track_state(track_name, f_val, m_val, s_val, socket_path)
+        frz_val = frozen if frozen is not None else False
+        results["socket_sync"] = fast_sync_track_state(track_name, f_val, p_val, m_val, s_val, frz_val, socket_path)
 
     # 2. OSC broadcast to Member DAWs
     try:
@@ -399,6 +401,8 @@ def broadcast_track_update(track_name, fader=None, muted=None, soloed=None, osc_
         try:
             if fader is not None:
                 client.send_message(f"/track/{track_name}/fader", float(fader))
+            if pan is not None:
+                client.send_message(f"/track/{track_name}/pan", float(pan))
             if muted is not None:
                 client.send_message(f"/track/{track_name}/mute", 1.0 if muted else 0.0)
             if soloed is not None:
@@ -413,12 +417,12 @@ def broadcast_track_update(track_name, fader=None, muted=None, soloed=None, osc_
     return results
 
 
-def fast_sync_track_state(track_name, fader=0.0, muted=False, soloed=False, socket_path=DEFAULT_SOCKET_PATH):
+def fast_sync_track_state(track_name, fader=0.0, pan=0.0, muted=False, soloed=False, frozen=False, socket_path=DEFAULT_SOCKET_PATH):
     """Encodes track parameters into binary layout and transmits to Omni-Plugin bridge."""
     name_bytes = track_name.encode("utf-8")[:255]
     name_len = len(name_bytes)
-    # Format: [1B len][NB name][4B float fader][1B muted][1B soloed]
-    packed = struct.pack(f"!B{name_len}sf??", name_len, name_bytes, float(fader), bool(muted), bool(soloed))
+    # Format: [1B len][NB name][4B float fader][4B float pan][1B muted][1B soloed][1B frozen]
+    packed = struct.pack(f"!B{name_len}sff???", name_len, name_bytes, float(fader), float(pan), bool(muted), bool(soloed), bool(frozen))
 
     if not os.path.exists(socket_path):
         return {"status": "error", "message": "Socket not found", "packed_len": len(packed)}
