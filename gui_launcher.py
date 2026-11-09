@@ -21,7 +21,7 @@ import subprocess
 import time
 import webbrowser
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 
 try:
     import launcher
@@ -1453,14 +1453,26 @@ class OmniDashboard(tk.Tk):
             return
 
         dialog = tk.Toplevel(self)
-        dialog.title("Restore Session Checkpoint")
-        dialog.geometry("340x180")
+        dialog.title("Session Checkpoint Manager")
+        dialog.geometry("400x240")
         dialog.transient(self)
 
-        tk.Label(dialog, text="Select Checkpoint to Restore:", font=("Helvetica", 9, "bold")).pack(pady=8)
-        combo = ttk.Combobox(dialog, values=checkpoints, state="readonly", width=28)
+        tk.Label(dialog, text="Select Session Checkpoint:", font=("Helvetica", 9, "bold")).pack(pady=6)
+        combo = ttk.Combobox(dialog, values=checkpoints, state="readonly", width=32)
         combo.set(checkpoints[-1])
-        combo.pack(pady=4)
+        combo.pack(pady=2)
+
+        info_lbl = tk.Label(dialog, text="", font=("Monospace", 8), fg="#7f848e")
+        info_lbl.pack(pady=4)
+
+        def _update_info(event=None):
+            chosen = combo.get()
+            details = mem.get_checkpoint_details(chosen)
+            if details:
+                info_lbl.config(text=f"Tag: [{details.get('tag')}] | Tracks: {details.get('track_count')} | Saved: {details.get('time_str')}")
+
+        combo.bind("<<ComboboxSelected>>", _update_info)
+        _update_info()
 
         def _do_restore():
             chosen = combo.get()
@@ -1473,10 +1485,30 @@ class OmniDashboard(tk.Tk):
                     self.refresh_session_memory()
             dialog.destroy()
 
+        def _do_delete():
+            chosen = combo.get()
+            if chosen:
+                if messagebox.askyesno("Delete Checkpoint", f"Delete checkpoint '{chosen}'?"):
+                    mem.delete_checkpoint(chosen)
+                    self.log(f"[Session Memory] Checkpoint '{chosen}' deleted.")
+                    dialog.destroy()
+                    self.refresh_session_memory()
+
+        def _do_tag():
+            chosen = combo.get()
+            if chosen:
+                tag_win = tk.simpledialog.askstring("Tag Checkpoint", f"Enter workflow tag for '{chosen}':")
+                if tag_win:
+                    mem.tag_checkpoint(chosen, tag_win.strip())
+                    self.log(f"[Session Memory] Checkpoint '{chosen}' tagged as '{tag_win.strip()}'.")
+                    _update_info()
+
         btn_row = tk.Frame(dialog)
-        btn_row.pack(pady=12)
-        ttk.Button(btn_row, text="Restore", command=_do_restore).pack(side="left", padx=4)
-        ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side="left", padx=4)
+        btn_row.pack(pady=10)
+        ttk.Button(btn_row, text="Restore", command=_do_restore).pack(side="left", padx=3)
+        ttk.Button(btn_row, text="Tag...", command=_do_tag).pack(side="left", padx=3)
+        ttk.Button(btn_row, text="Delete", command=_do_delete).pack(side="left", padx=3)
+        ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="left", padx=3)
 
     def audit_session_state(self):
         if not session_memory:

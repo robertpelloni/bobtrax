@@ -587,12 +587,13 @@ class SessionMemory:
             "track": track.name
         }
 
-    def save_checkpoint(self, name):
+    def save_checkpoint(self, name, tag="milestone"):
         """Creates a named snapshot of current track states and parameters."""
         snapshot = {k: t.to_dict() for k, t in self.tracks.items()}
         self.checkpoints[name] = {
             "timestamp": time.time(),
             "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "tag": tag,
             "snapshot": snapshot
         }
         self._save()
@@ -607,6 +608,22 @@ class SessionMemory:
         self._save()
         return True
 
+    def delete_checkpoint(self, name):
+        """Removes a saved checkpoint from session memory."""
+        if name in self.checkpoints:
+            del self.checkpoints[name]
+            self._save()
+            return True
+        return False
+
+    def tag_checkpoint(self, name, tag):
+        """Updates the categorization tag for an existing checkpoint."""
+        if name in self.checkpoints:
+            self.checkpoints[name]["tag"] = tag
+            self._save()
+            return True
+        return False
+
     def list_checkpoints(self):
         return list(self.checkpoints.keys())
 
@@ -619,6 +636,7 @@ class SessionMemory:
             "name": name,
             "timestamp": cp.get("timestamp"),
             "time_str": cp.get("time_str"),
+            "tag": cp.get("tag", "milestone"),
             "track_count": len(cp.get("snapshot", {})),
             "tracks": list(cp.get("snapshot", {}).keys())
         }

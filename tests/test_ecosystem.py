@@ -708,5 +708,27 @@ class TestBinarySerializationExtended(unittest.TestCase):
         self.assertTrue(frozen)
 
 
+class TestCheckpointManagement(unittest.TestCase):
+    def test_checkpoint_tagging_and_deletion(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.get_or_create_track("lead").fader = -3.0
+
+            # Save tagged checkpoint
+            mem.save_checkpoint("cp_mix_v1", tag="rough_mix")
+            details = mem.get_checkpoint_details("cp_mix_v1")
+            self.assertEqual(details["tag"], "rough_mix")
+
+            # Tag update via bridge
+            import bobui_bridge
+            bobui_bridge.tag_session_checkpoint("cp_mix_v1", "vocal_tuned", mem=mem)
+            self.assertEqual(mem.get_checkpoint_details("cp_mix_v1")["tag"], "vocal_tuned")
+
+            # Deletion via bridge
+            self.assertIn("cp_mix_v1", mem.list_checkpoints())
+            bobui_bridge.delete_session_checkpoint("cp_mix_v1", mem=mem)
+            self.assertNotIn("cp_mix_v1", mem.list_checkpoints())
+
+
 if __name__ == "__main__":
     unittest.main()

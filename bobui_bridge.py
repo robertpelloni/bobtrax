@@ -226,16 +226,28 @@ def unfreeze_track_bridge(track_name, mem=None):
     return target_mem.unfreeze_track(track_name)
 
 
-def create_session_checkpoint(name, mem=None):
+def create_session_checkpoint(name, tag="milestone", mem=None):
     """Saves a named snapshot checkpoint in session memory."""
     target_mem = mem or session_memory.SessionMemory()
-    return target_mem.save_checkpoint(name)
+    return target_mem.save_checkpoint(name, tag)
 
 
 def restore_session_checkpoint(name, mem=None):
     """Restores a session snapshot from checkpoint."""
     target_mem = mem or session_memory.SessionMemory()
     return target_mem.restore_checkpoint(name)
+
+
+def delete_session_checkpoint(name, mem=None):
+    """Deletes a saved checkpoint from session memory."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.delete_checkpoint(name)
+
+
+def tag_session_checkpoint(name, tag, mem=None):
+    """Tags a saved checkpoint with workflow category."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.tag_checkpoint(name, tag)
 
 
 def undo_session_action(mem=None):

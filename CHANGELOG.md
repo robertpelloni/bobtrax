@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.63] - 2026-03-30
+### Added
+- Checkpoint tagging and deletion in `session_memory.py` (`tag_checkpoint`, `delete_checkpoint`).
+- `tag_session_checkpoint()` and `delete_session_checkpoint()` in `bobui_bridge.py`.
+- Interactive Checkpoint Manager dialog in `gui_launcher.py` with metadata tagging and deletion controls.
+- Comprehensive unit test suite `TestCheckpointManagement` in `tests/test_ecosystem.py`.
+
 ## [1.0.62] - 2026-03-30
 ### Added
 - Extended binary serialization layout with stereo pan and frozen flags in C++ `BobUISessionBridge` and Python `fast_sync_track_state`.
