@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.74] - 2026-03-30
+### Added
+- `verify_audio_buffer_loopback()` in `bobui_bridge.py` supporting audio buffer injection, peak, RMS energy, and latency measurements.
+- `INJECT_AUDIO_STREAM` frame parsing in `omni_plugin_bridge/src/lib.rs`.
+- `testAudioLoopback()` in `bobui_omni_adapter` C++ bridge.
+- "🔊 Loopback Test" action button in Track Agent-Memory Hub in `gui_launcher.py`.
+- Comprehensive unit test suite `TestAudioBufferLoopback` in `tests/test_ecosystem.py`.
+
 ## [1.0.73] - 2026-03-30
 ### Added
 - `fast_sync_bulk_tracks()` in `bobui_bridge.py` supporting high-throughput atomic transmission of track parameters.

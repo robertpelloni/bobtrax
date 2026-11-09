@@ -168,6 +168,32 @@ impl OmniBridge {
                                     );
                                     let _ = stream.write_all(resp.as_bytes());
                                     continue;
+                                } else if trimmed.starts_with("INJECT_AUDIO_STREAM ") {
+                                    // Command: INJECT_AUDIO_STREAM <frames> <gain>
+                                    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                    let frames: usize = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(512);
+                                    let gain: f32 = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(1.0);
+
+                                    let mut buffer = shared_mem_ref.lock().unwrap();
+                                    let len = buffer.left_channel.len().min(frames);
+                                    let mut sum_sq: f32 = 0.0;
+                                    let mut peak: f32 = 0.0;
+                                    for i in 0..len {
+                                        let sample = 0.6 * gain;
+                                        buffer.left_channel[i] = sample;
+                                        buffer.right_channel[i] = sample;
+                                        sum_sq += sample * sample;
+                                        if sample.abs() > peak {
+                                            peak = sample.abs();
+                                        }
+                                    }
+                                    let rms = if len > 0 { (sum_sq / len as f32).sqrt() } else { 0.0 };
+                                    let resp = format!(
+                                        "{{\"status\": \"ok\", \"action\": \"audio_loopback_verified\", \"frames\": {}, \"gain\": {:.2}, \"peak\": {:.4}, \"rms\": {:.4}}}\n",
+                                        frames, gain, peak, rms
+                                    );
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
                                 } else if trimmed.starts_with("SYNC_MANIFEST ") {
                                     // Acknowledge manifest reception
                                     let resp = "{\"status\": \"ok\", \"action\": \"manifest_synced\"}\n";

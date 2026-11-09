@@ -539,6 +539,10 @@ class OmniDashboard(tk.Tk):
         apply_preset_btn.pack(side="left", padx=2)
         ToolTip(apply_preset_btn, "Broadcast preset parameter block to Omni-Plugin Bridge.")
 
+        audio_loopback_btn = ttk.Button(plugin_sync_bar, text="🔊 Loopback Test", command=self._test_audio_loopback_action)
+        audio_loopback_btn.pack(side="left", padx=2)
+        ToolTip(audio_loopback_btn, "Inject test audio stream into Omni-Plugin Bridge and measure peak/RMS/latency.")
+
         tk.Label(plugin_sync_bar, text="Cutoff:", font=("Helvetica", 8), bg="#282c34", fg="#abb2bf").pack(side="left")
         self.cutoff_scale = tk.Scale(
             plugin_sync_bar,
@@ -1179,6 +1183,25 @@ class OmniDashboard(tk.Tk):
                 self.plugin_sync_status.config(text=f"Preset: {preset} on {track}")
                 self.log(f"Omni-Plugin preset '{preset}' applied to track '{track}'.")
                 self.refresh_session_memory()
+
+    def _test_audio_loopback_action(self):
+        self.log("[Audio Loopback] Injecting 512-frame audio test stream into Omni-Plugin Bridge...")
+        def _run():
+            try:
+                import bobui_bridge
+                rep = bobui_bridge.verify_audio_buffer_loopback(frames=512, sample_rate=48000, gain=1.0)
+                status = rep.get("status", "unknown")
+                peak = rep.get("peak", 0.0)
+                peak_db = rep.get("peak_db", -60.0)
+                rms_db = rep.get("rms_db", -60.0)
+                lat = rep.get("loopback_roundtrip_ms", rep.get("latency_ms", 0.0))
+                mode = rep.get("mode", "dsp")
+                msg = f"[Audio Loopback] {status.upper()} (mode: {mode}): Peak: {peak:.4f} ({peak_db} dBFS) | RMS: {rms_db} dBFS | Latency: {lat:.2f} ms"
+                self.after(0, lambda: self.log(msg))
+                self.after(0, lambda: self.plugin_sync_status.config(text=f"Loopback: {peak_db} dBFS"))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Audio Loopback Error] {e}"))
+        threading.Thread(target=_run, daemon=True).start()
 
     def import_session_dialog(self):
         if not session_memory or not session_importer:

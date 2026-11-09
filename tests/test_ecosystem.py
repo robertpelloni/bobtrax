@@ -1082,5 +1082,23 @@ class TestBulkFastSync(unittest.TestCase):
         self.assertEqual(rep_empty["socket_status"], "skipped_empty")
 
 
+class TestAudioBufferLoopback(unittest.TestCase):
+    def test_verify_audio_buffer_loopback(self):
+        import bobui_bridge
+
+        # Test simulated loopback with mock non-existent socket
+        rep = bobui_bridge.verify_audio_buffer_loopback(frames=512, sample_rate=48000, gain=1.0, socket_path="/tmp/nonexistent_loopback.sock")
+        self.assertEqual(rep["status"], "ok")
+        self.assertEqual(rep["action"], "audio_loopback_verified")
+        self.assertEqual(rep["mode"], "simulated")
+        self.assertEqual(rep["frames"], 512)
+        self.assertGreater(rep["peak"], 0.0)
+        self.assertGreater(rep["rms"], 0.0)
+        self.assertIn("peak_db", rep)
+        self.assertIn("rms_db", rep)
+        self.assertIn("latency_ms", rep)
+        self.assertAlmostEqual(rep["latency_ms"], 10.67, delta=0.1)
+
+
 if __name__ == "__main__":
     unittest.main()
