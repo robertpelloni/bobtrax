@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.76] - 2026-03-30
+### Added
+- `validate_session_transition()` in `session_memory.py` adding pre-flight sanity checks before DAW transitions.
+- Pre-flight transition validation gate inside `transition_session()` in `bobui_bridge.py`.
+- `validateTransitionPreflight()` in `BobUISessionBridge` C++ adapter.
+- Interactive "Pre-flight Check" button and status display in Transition to DAW dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionTransitionPreflight` in `tests/test_ecosystem.py`.
+
 ## [1.0.75] - 2026-03-30
 ### Added
 - `get_session_synchronization_metrics()` in `session_memory.py` reporting cross-DAW health, active DAWs, track flags, and checkpoint lineage depth.

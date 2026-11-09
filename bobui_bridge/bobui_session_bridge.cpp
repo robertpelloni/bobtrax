@@ -201,6 +201,20 @@ std::string BobUISessionBridge::getCheckpointParent(const std::string& id) const
     return "";
 }
 
+bool BobUISessionBridge::validateTransitionPreflight(const std::string& fromDaw, const std::string& toDaw) const {
+    if (fromDaw.empty() || toDaw.empty()) {
+        return false;
+    }
+    if (fromDaw == toDaw) {
+        return true;
+    }
+    // Check known members
+    std::vector<std::string> known = {"ardour", "lmms", "muse", "zrythm", "bobui"};
+    bool fromKnown = std::find(known.begin(), known.end(), fromDaw) != known.end();
+    bool toKnown = std::find(known.begin(), known.end(), toDaw) != known.end();
+    return fromKnown && toKnown;
+}
+
 std::map<std::string, std::string> BobUISessionBridge::getSessionMetrics() const {
     std::map<std::string, std::string> metrics;
     metrics["checkpoints_count"] = std::to_string(m_checkpoints.size());

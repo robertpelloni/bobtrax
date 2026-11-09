@@ -813,6 +813,42 @@ class SessionMemory:
             "last_sync_str": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last_sync))
         }
 
+    def validate_session_transition(self, from_daw, to_daw):
+        """Runs pre-flight validation on current session state before executing DAW transition."""
+        issues = []
+        warnings = []
+
+        if not self.tracks:
+            issues.append("Session contains 0 tracks; cannot transition empty session.")
+
+        supported_daws = ["ardour", "lmms", "muse", "zrythm", "bobui"]
+        f_norm = from_daw.lower()
+        t_norm = to_daw.lower()
+
+        if f_norm not in supported_daws:
+            issues.append(f"Source DAW '{from_daw}' is not recognized.")
+        if t_norm not in supported_daws:
+            issues.append(f"Target DAW '{to_daw}' is not recognized.")
+
+        # Check track parameter limits
+        for t_name, track in self.tracks.items():
+            if track.fader < -90.0 or track.fader > 12.0:
+                issues.append(f"Track '{t_name}' has invalid fader level: {track.fader}")
+            if track.pan < -1.0 or track.pan > 1.0:
+                issues.append(f"Track '{t_name}' has invalid pan position: {track.pan}")
+            if track.frozen and not track.freeze_file:
+                warnings.append(f"Track '{t_name}' is frozen but has no rendered freeze_file.")
+
+        return {
+            "valid": len(issues) == 0,
+            "from_daw": f_norm,
+            "to_daw": t_norm,
+            "total_tracks": len(self.tracks),
+            "issues": issues,
+            "warnings": warnings,
+            "reason": "OK" if len(issues) == 0 else f"{len(issues)} transition pre-flight issues detected"
+        }
+
     def undo_last_action(self):
         """Reverts parameter changes introduced by the most recent AI mixing action."""
         if not self.action_history:

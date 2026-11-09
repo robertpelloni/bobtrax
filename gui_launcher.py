@@ -1348,7 +1348,7 @@ class OmniDashboard(tk.Tk):
     def transition_daw_dialog(self):
         dialog = tk.Toplevel(self)
         dialog.title("Transition Session to DAW")
-        dialog.geometry("340x200")
+        dialog.geometry("380x250")
         dialog.transient(self)
 
         tk.Label(dialog, text="Source DAW:", font=("Helvetica", 9)).pack(anchor="w", padx=16, pady=(8, 2))
@@ -1361,9 +1361,25 @@ class OmniDashboard(tk.Tk):
         tgt_combo.set("lmms")
         tgt_combo.pack(padx=16, pady=2)
 
+        status_lbl = tk.Label(dialog, text="", font=("Monospace", 8), fg="#7f848e")
+        status_lbl.pack(padx=16, pady=2)
+
         safe_var = tk.BooleanVar(value=True)
         safe_chk = ttk.Checkbutton(dialog, text="Rollback on Verification Failure", variable=safe_var)
         safe_chk.pack(anchor="w", padx=16, pady=4)
+
+        def _do_preflight():
+            src = src_combo.get()
+            tgt = tgt_combo.get()
+            if session_memory:
+                mem = session_memory.SessionMemory()
+                res = mem.validate_session_transition(src, tgt)
+                if res.get("valid"):
+                    status_lbl.config(text=f"✓ Pre-flight Pass ({res['total_tracks']} tracks healthy)", fg="#98c379")
+                    self.log(f"[Transition Pre-flight] Passed for {src.upper()} -> {tgt.upper()} ({res['total_tracks']} tracks).")
+                else:
+                    status_lbl.config(text=f"⚠ Fail: {res['reason']}", fg="#e06c75")
+                    self.log(f"[Transition Pre-flight Error] {res['issues']}")
 
         def _do_transition():
             src = src_combo.get()
@@ -1390,6 +1406,7 @@ class OmniDashboard(tk.Tk):
 
         btn_row = tk.Frame(dialog)
         btn_row.pack(pady=12)
+        ttk.Button(btn_row, text="Pre-flight Check", command=_do_preflight).pack(side="left", padx=4)
         ttk.Button(btn_row, text="Execute Transition", command=_do_transition).pack(side="left", padx=4)
         ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side="left", padx=4)
 

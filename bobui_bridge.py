@@ -352,6 +352,16 @@ def export_diff_patch_bridge(checkpoint_a, checkpoint_b, output_path, mem=None):
 def transition_session(from_daw, to_daw, target_file_path=None, mem=None):
     """Executes state-preserved session transition between two member DAWs."""
     target_mem = mem or session_memory.SessionMemory()
+
+    # Run pre-flight check
+    preflight = target_mem.validate_session_transition(from_daw, to_daw)
+    if not preflight.get("valid"):
+        return {
+            "status": "error",
+            "message": "Transition pre-flight validation failed",
+            "preflight": preflight
+        }
+
     checkpoint_name = f"transition_{from_daw}_to_{to_daw}_{int(time.time())}"
     target_mem.save_checkpoint(checkpoint_name)
 

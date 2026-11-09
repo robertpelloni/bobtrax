@@ -1144,5 +1144,49 @@ class TestSessionSynchronizationMetrics(unittest.TestCase):
                 os.remove(temp_db)
 
 
+class TestSessionTransitionPreflight(unittest.TestCase):
+    def test_preflight_validation_healthy_and_corrupt(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.tracks.clear()
+
+            # 1. Test empty session rejection
+            res_empty = mem.validate_session_transition("ardour", "lmms")
+            self.assertFalse(res_empty["valid"])
+            self.assertIn("0 tracks", res_empty["issues"][0])
+
+            # 2. Add healthy tracks
+            t1 = mem.get_or_create_track("vocals")
+            t1.fader = -3.0
+            t1.pan = -0.2
+            t2 = mem.get_or_create_track("drums")
+            t2.fader = 0.0
+            t2.pan = 0.0
+
+            res_healthy = mem.validate_session_transition("ardour", "lmms")
+            self.assertTrue(res_healthy["valid"])
+            self.assertEqual(res_healthy["total_tracks"], 2)
+            self.assertEqual(len(res_healthy["issues"]), 0)
+
+            # 3. Test corrupted parameter detection
+            t1.fader = 999.0
+            res_corrupt = mem.validate_session_transition("ardour", "lmms")
+            self.assertFalse(res_corrupt["valid"])
+            self.assertGreater(len(res_corrupt["issues"]), 0)
+
+            # 4. Test pre-flight gate inside transition_session()
+            fail_trans = bobui_bridge.transition_session("ardour", "lmms", mem=mem)
+            self.assertEqual(fail_trans["status"], "error")
+            self.assertIn("pre-flight", fail_trans["message"])
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
 if __name__ == "__main__":
     unittest.main()
