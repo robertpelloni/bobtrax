@@ -592,11 +592,13 @@ class SessionMemory:
     def save_checkpoint(self, name, tag="milestone", parent_checkpoint_id=None):
         """Creates a named snapshot of current track states and parameters."""
         snapshot = {k: t.to_dict() for k, t in self.tracks.items()}
+        # If updating an existing checkpoint and parent_checkpoint_id is not specified, preserve existing parent
+        existing_parent = self.checkpoints.get(name, {}).get("parent_checkpoint_id") if name in self.checkpoints else None
         self.checkpoints[name] = {
             "timestamp": time.time(),
             "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
             "tag": tag,
-            "parent_checkpoint_id": parent_checkpoint_id,
+            "parent_checkpoint_id": parent_checkpoint_id if parent_checkpoint_id is not None else existing_parent,
             "snapshot": snapshot
         }
         self._save()

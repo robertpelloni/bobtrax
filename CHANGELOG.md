@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.78] - 2026-03-30
+### Added
+- `export_checkpoint_bundle()` in `session_exporter.py` supporting portable multi-checkpoint bundle packaging.
+- `import_checkpoint_bundle()` in `session_importer.py` supporting direct checkpoint bundle ingestion into session memory.
+- `export_checkpoint_bundle_bridge()` and `import_checkpoint_bundle_bridge()` gateways in `bobui_bridge.py`.
+- `exportCheckpointsBundle()` and `importCheckpointsBundle()` in `BobUISessionBridge` C++ adapter.
+- Interactive "Export Bundle..." and "Import Bundle..." actions in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointBundleInterchange` in `tests/test_ecosystem.py`.
+
 ## [1.0.77] - 2026-03-30
 ### Added
 - `stash_session_state()` and `pop_stash_session_state()` in `session_memory.py` supporting LIFO session mix stashing.

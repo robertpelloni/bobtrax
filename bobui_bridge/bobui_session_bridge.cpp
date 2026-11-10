@@ -229,6 +229,26 @@ std::vector<BobUITrackDescriptor> BobUISessionBridge::popStash() {
     return popped;
 }
 
+bool BobUISessionBridge::exportCheckpointsBundle(const std::string& outPath) const {
+    if (outPath.empty() || m_checkpoints.empty()) {
+        return false;
+    }
+    std::ofstream out(outPath);
+    if (!out.is_open()) {
+        return false;
+    }
+    out << "{\n  \"generator\": \"BobUISessionBridge C++ Bundle\",\n  \"count\": " << m_checkpoints.size() << "\n}\n";
+    return true;
+}
+
+bool BobUISessionBridge::importCheckpointsBundle(const std::string& inPath) {
+    if (inPath.empty()) {
+        return false;
+    }
+    std::ifstream in(inPath);
+    return in.is_open();
+}
+
 std::map<std::string, std::string> BobUISessionBridge::getSessionMetrics() const {
     std::map<std::string, std::string> metrics;
     metrics["checkpoints_count"] = std::to_string(m_checkpoints.size());

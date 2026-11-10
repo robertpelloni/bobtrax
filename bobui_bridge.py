@@ -361,6 +361,16 @@ def export_diff_patch_bridge(checkpoint_a, checkpoint_b, output_path, mem=None):
     return session_exporter.export_session_diff_patch(checkpoint_a, checkpoint_b, output_path, mem=mem)
 
 
+def export_checkpoint_bundle_bridge(checkpoint_names=None, output_path=None, mem=None):
+    """Packages checkpoints and lineages into an interchange bundle file."""
+    return session_exporter.export_checkpoint_bundle(checkpoint_names, output_path, mem=mem)
+
+
+def import_checkpoint_bundle_bridge(bundle_path, mem=None, overwrite_existing=True):
+    """Imports checkpoint bundle JSON file into session memory."""
+    return session_importer.import_checkpoint_bundle(bundle_path, mem=mem, overwrite_existing=overwrite_existing)
+
+
 def transition_session(from_daw, to_daw, target_file_path=None, mem=None):
     """Executes state-preserved session transition between two member DAWs."""
     target_mem = mem or session_memory.SessionMemory()

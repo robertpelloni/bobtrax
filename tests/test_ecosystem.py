@@ -1232,5 +1232,55 @@ class TestSessionStateStash(unittest.TestCase):
                 os.remove(temp_db)
 
 
+class TestCheckpointBundleInterchange(unittest.TestCase):
+    def test_bundle_export_and_import(self):
+        import session_memory
+        import session_exporter
+        import session_importer
+        import bobui_bridge
+        import tempfile
+
+        db1 = tempfile.mktemp(suffix=".json")
+        db2 = tempfile.mktemp(suffix=".json")
+        bundle_file = tempfile.mktemp(suffix=".json")
+        try:
+            mem1 = session_memory.SessionMemory(storage_path=db1)
+            mem1.tracks.clear()
+
+            tv = mem1.get_or_create_track("vocals")
+            tv.fader = -2.5
+            cp1 = mem1.save_checkpoint("vocal_rough", tag="v1.0")
+
+            mem1.fork_checkpoint(cp1, "vocal_alt", branch_tag="alt_take")
+            mem1.restore_checkpoint("vocal_alt")
+            mem1.tracks["vocals"].fader = -1.0
+            mem1.save_checkpoint("vocal_alt")
+
+            # 1. Export bundle from mem1
+            exp_res = session_exporter.export_checkpoint_bundle(output_path=bundle_file, mem=mem1)
+            self.assertEqual(exp_res["checkpoint_count"], 2)
+            self.assertIn("vocal_rough", exp_res["checkpoints"])
+            self.assertIn("vocal_alt", exp_res["checkpoints"])
+            self.assertEqual(exp_res["checkpoints"]["vocal_alt"]["parent_checkpoint_id"], "vocal_rough")
+
+            # 2. Import bundle into clean mem2
+            mem2 = session_memory.SessionMemory(storage_path=db2)
+            mem2.checkpoints.clear()
+
+            imp_res = bobui_bridge.import_checkpoint_bundle_bridge(bundle_file, mem=mem2)
+            self.assertEqual(imp_res["status"], "success")
+            self.assertEqual(imp_res["checkpoints_imported"], 2)
+            self.assertIn("vocal_rough", mem2.checkpoints)
+            self.assertIn("vocal_alt", mem2.checkpoints)
+
+            # Validate restored branch state
+            mem2.restore_checkpoint("vocal_alt")
+            self.assertEqual(mem2.tracks["vocals"].fader, -1.0)
+        finally:
+            for p in [db1, db2, bundle_file]:
+                if os.path.exists(p):
+                    os.remove(p)
+
+
 if __name__ == "__main__":
     unittest.main()

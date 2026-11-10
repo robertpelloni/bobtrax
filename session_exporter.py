@@ -141,6 +141,39 @@ def export_session_diff_patch(checkpoint_a, checkpoint_b, output_path, mem=None)
     return patch_payload
 
 
+def export_checkpoint_bundle(checkpoint_names=None, output_path=None, mem=None):
+    """Packages multiple snapshot checkpoints and their lineages into a portable bundle file."""
+    import session_memory
+    target_mem = mem or session_memory.SessionMemory()
+
+    cps_to_export = checkpoint_names or list(target_mem.checkpoints.keys())
+    bundle_data = {
+        "generator": "Bobtrax Checkpoint Bundle Exporter",
+        "timestamp": time.time(),
+        "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+        "checkpoint_count": len(cps_to_export),
+        "checkpoints": {}
+    }
+
+    for name in cps_to_export:
+        if name in target_mem.checkpoints:
+            cp_data = target_mem.checkpoints[name]
+            bundle_data["checkpoints"][name] = {
+                "timestamp": cp_data.get("timestamp"),
+                "time_str": cp_data.get("time_str"),
+                "tag": cp_data.get("tag", "milestone"),
+                "parent_checkpoint_id": cp_data.get("parent_checkpoint_id"),
+                "lineage": target_mem.get_checkpoint_lineage(name),
+                "snapshot": cp_data.get("snapshot", {})
+            }
+
+    if output_path:
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(bundle_data, f, indent=2)
+
+    return bundle_data
+
+
 if __name__ == "__main__":
     import session_memory
     mem = session_memory.SessionMemory()

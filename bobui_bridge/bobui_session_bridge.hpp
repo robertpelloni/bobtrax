@@ -43,6 +43,8 @@ public:
     bool validateTransitionPreflight(const std::string& fromDaw, const std::string& toDaw) const;
     bool stashSession(const std::vector<BobUITrackDescriptor>& tracks);
     std::vector<BobUITrackDescriptor> popStash();
+    bool exportCheckpointsBundle(const std::string& outPath) const;
+    bool importCheckpointsBundle(const std::string& inPath);
     std::map<std::string, std::string> getSessionMetrics() const;
     std::vector<std::string> listCheckpoints() const;
     std::vector<BobUITrackDescriptor> undoLastAction();

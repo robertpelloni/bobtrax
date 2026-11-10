@@ -1784,6 +1784,41 @@ class OmniDashboard(tk.Tk):
             else:
                 messagebox.showinfo("Undo Restore", "No pre-restore backup available to rollback.")
 
+        def _do_export_bundle():
+            out_file = filedialog.asksaveasfilename(
+                title="Export Checkpoint Bundle",
+                defaultextension=".json",
+                filetypes=[("Checkpoint Bundle JSON", "*.json"), ("All Files", "*.*")]
+            )
+            if out_file:
+                try:
+                    import bobui_bridge
+                    rep = bobui_bridge.export_checkpoint_bundle_bridge(output_path=out_file, mem=mem)
+                    self.log(f"[Checkpoint Bundle] Exported {rep.get('checkpoint_count')} checkpoints to: {out_file}")
+                    messagebox.showinfo("Export Bundle", f"Checkpoint bundle successfully exported to:\n{out_file}")
+                except Exception as e:
+                    self.log(f"[Export Bundle Error] {e}")
+
+        def _do_import_bundle():
+            in_file = filedialog.askopenfilename(
+                title="Import Checkpoint Bundle",
+                filetypes=[("Checkpoint Bundle JSON", "*.json"), ("All Files", "*.*")]
+            )
+            if in_file:
+                try:
+                    import bobui_bridge
+                    rep = bobui_bridge.import_checkpoint_bundle_bridge(in_file, mem=mem)
+                    self.log(f"[Checkpoint Bundle] Imported {rep.get('checkpoints_imported')} checkpoints from: {in_file}")
+                    new_cps = mem.list_checkpoints()
+                    combo.config(values=new_cps)
+                    if new_cps:
+                        combo.set(new_cps[-1])
+                        _update_info()
+                    self.refresh_session_memory()
+                    messagebox.showinfo("Import Bundle", f"Imported {rep.get('checkpoints_imported')} checkpoints into session.")
+                except Exception as e:
+                    self.log(f"[Import Bundle Error] {e}")
+
         btn_row = tk.Frame(dialog)
         btn_row.pack(pady=10)
         ttk.Button(btn_row, text="Restore", command=_do_restore).pack(side="left", padx=2)
@@ -1791,6 +1826,8 @@ class OmniDashboard(tk.Tk):
         ttk.Button(btn_row, text="Verify", command=_do_verify).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Fork...", command=_do_fork).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Merge...", command=_do_merge_branch).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Export Bundle...", command=_do_export_bundle).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Import Bundle...", command=_do_import_bundle).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Tag...", command=_do_tag).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Delete", command=_do_delete).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="left", padx=2)
