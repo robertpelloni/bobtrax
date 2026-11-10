@@ -1325,5 +1325,35 @@ class TestCheckpointPruning(unittest.TestCase):
                 os.remove(temp_db)
 
 
+class TestDawEndpointPingTelemetry(unittest.TestCase):
+    def test_daw_endpoint_ping(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.registered_daws.clear()
+
+            mem.register_daw("ardour", port=3819)
+            mem.register_daw("lmms", port=8000)
+            mem.register_daw("muse")
+
+            ping_res = bobui_bridge.ping_all_daw_endpoints_bridge(mem=mem)
+            self.assertIn("ardour", ping_res)
+            self.assertIn("lmms", ping_res)
+            self.assertIn("muse", ping_res)
+            self.assertIn("omni_bridge", ping_res)
+
+            self.assertEqual(ping_res["muse"]["status"], "registered")
+            self.assertGreater(ping_res["muse"]["latency_ms"], 0.0)
+            self.assertIn(ping_res["ardour"]["status"], ["online", "error"])
+            self.assertIn(ping_res["omni_bridge"]["status"], ["online", "offline", "error"])
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
 if __name__ == "__main__":
     unittest.main()

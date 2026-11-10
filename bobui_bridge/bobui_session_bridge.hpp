@@ -44,6 +44,7 @@ public:
     bool validateTransitionPreflight(const std::string& fromDaw, const std::string& toDaw) const;
     bool stashSession(const std::vector<BobUITrackDescriptor>& tracks);
     std::vector<BobUITrackDescriptor> popStash();
+    bool pingEngine(const std::string& dawName, double* latencyMs = nullptr) const;
     bool exportCheckpointsBundle(const std::string& outPath) const;
     bool importCheckpointsBundle(const std::string& inPath);
     std::map<std::string, std::string> getSessionMetrics() const;

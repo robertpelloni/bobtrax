@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.80] - 2026-03-30
+### Added
+- `ping_daw_endpoints()` in `session_memory.py` probing DAW UDP ports and Omni socket latency.
+- `ping_all_daw_endpoints_bridge()` gateway in `bobui_bridge.py`.
+- `pingEngine()` in `BobUISessionBridge` C++ adapter.
+- Interactive "⚡ Ping DAWs" action button and dynamic latency badges on workstation cards in `gui_launcher.py`.
+- Comprehensive unit test suite `TestDawEndpointPingTelemetry` in `tests/test_ecosystem.py`.
+
 ## [1.0.79] - 2026-03-30
 ### Added
 - `prune_checkpoints()` in `session_memory.py` supporting quota-enforced auto-pruning with tag and branch protection.

@@ -377,6 +377,12 @@ def import_checkpoint_bundle_bridge(bundle_path, mem=None, overwrite_existing=Tr
     return session_importer.import_checkpoint_bundle(bundle_path, mem=mem, overwrite_existing=overwrite_existing)
 
 
+def ping_all_daw_endpoints_bridge(mem=None):
+    """Dispatches latency/availability pings to all active DAW endpoints."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.ping_daw_endpoints()
+
+
 def transition_session(from_daw, to_daw, target_file_path=None, mem=None):
     """Executes state-preserved session transition between two member DAWs."""
     target_mem = mem or session_memory.SessionMemory()

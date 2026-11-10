@@ -742,6 +742,10 @@ class OmniDashboard(tk.Tk):
         compat_btn.pack(side="right", padx=2)
         ToolTip(compat_btn, "Query format compatibility across Ardour, LMMS, MusE, and Zrythm.")
 
+        ping_daws_btn = ttk.Button(bridge_status_bar, text="⚡ Ping DAWs", command=self.ping_daw_endpoints_action)
+        ping_daws_btn.pack(side="right", padx=2)
+        ToolTip(ping_daws_btn, "Dispatch latency and heartbeat ping telemetry across all active DAW endpoints.")
+
         # DAW Launchers
         daw_btns_frame = tk.Frame(workstation_frame)
         daw_btns_frame.pack(fill="x", pady=2)
@@ -1317,6 +1321,27 @@ class OmniDashboard(tk.Tk):
         btn_row.pack(pady=10)
         ttk.Button(btn_row, text="Execute Merge", command=_execute_merge).pack(side="left", padx=4)
         ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side="left", padx=4)
+
+    def ping_daw_endpoints_action(self):
+        self.log("[Ping Telemetry] Probing latency and heartbeat response across all registered DAW engines...")
+        def _run():
+            try:
+                import bobui_bridge
+                res = bobui_bridge.ping_all_daw_endpoints_bridge()
+                for daw, data in res.items():
+                    stat = data.get("status", "unknown").upper()
+                    lat = data.get("latency_ms")
+                    lat_str = f"{lat:.2f} ms" if lat is not None else "timeout"
+                    self.after(0, lambda d=daw, s=stat, l=lat_str: self.log(f"  • {d.upper():<12}: {s} (latency: {l})"))
+                    if daw in self.daw_badges:
+                        color = "#98c379" if stat == "ONLINE" else ("#e5c07b" if stat == "REGISTERED" else "#888")
+                        self.after(0, lambda d=daw, s=stat, c=color, l=lat_str: self.daw_badges[d].config(
+                            text=f"{s} ({l})" if "ms" in l else s,
+                            fg=c
+                        ))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Ping Telemetry Error] {e}"))
+        threading.Thread(target=_run, daemon=True).start()
 
     def export_session_dialog(self):
         if not session_memory or not session_exporter:

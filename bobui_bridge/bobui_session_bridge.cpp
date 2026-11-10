@@ -256,6 +256,16 @@ std::vector<BobUITrackDescriptor> BobUISessionBridge::popStash() {
     return popped;
 }
 
+bool BobUISessionBridge::pingEngine(const std::string& dawName, double* latencyMs) const {
+    if (dawName.empty()) {
+        return false;
+    }
+    if (latencyMs) {
+        *latencyMs = 0.5; // Simulated 0.5ms local IPC ping
+    }
+    return true;
+}
+
 bool BobUISessionBridge::exportCheckpointsBundle(const std::string& outPath) const {
     if (outPath.empty() || m_checkpoints.empty()) {
         return false;
