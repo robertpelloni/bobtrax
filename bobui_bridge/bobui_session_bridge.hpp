@@ -42,6 +42,7 @@ public:
     bool mergeCheckpointBranch(const std::string& srcId, const std::string& targetId);
     std::string getCheckpointParent(const std::string& id) const;
     bool validateTransitionPreflight(const std::string& fromDaw, const std::string& toDaw) const;
+    std::map<std::string, std::string> simulateTransition(const std::string& fromDaw, const std::string& toDaw) const;
     bool stashSession(const std::vector<BobUITrackDescriptor>& tracks);
     std::vector<BobUITrackDescriptor> popStash();
     bool pingEngine(const std::string& dawName, double* latencyMs = nullptr) const;

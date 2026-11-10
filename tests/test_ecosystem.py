@@ -1372,5 +1372,44 @@ class TestHeadlessStreamingStressTest(unittest.TestCase):
         self.assertGreaterEqual(report["jitter_ms"], 0.0)
 
 
+class TestSessionTransitionDryRunSimulation(unittest.TestCase):
+    def test_simulate_session_transition(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.tracks.clear()
+
+            t1 = mem.get_or_create_track("synth_lead")
+            t1.fader = -3.0
+            t1.pan = 0.4
+            t1.update_parameter("plugins/surge/filter_cutoff", 1200.0)
+
+            t2 = mem.get_or_create_track("acoustic_gtr")
+            t2.fader = 0.0
+            t2.frozen = True
+            t2.freeze_file = "/tmp/test_gtr.wav"
+
+            # 1. Simulate transition to LMMS
+            sim_lmms = bobui_bridge.simulate_session_transition_bridge("ardour", "lmms", mem=mem)
+            self.assertEqual(sim_lmms["status"], "simulation_ready")
+            self.assertTrue(sim_lmms["preflight_valid"])
+            self.assertEqual(sim_lmms["total_tracks"], 2)
+            self.assertEqual(sim_lmms["target_pan_law"], "constant_power")
+            self.assertTrue(sim_lmms["target_supports_freeze"])
+            self.assertGreater(sim_lmms["compatibility_percentage"], 0.0)
+
+            # 2. Simulate transition to MusE (does not support track freeze)
+            sim_muse = bobui_bridge.simulate_session_transition_bridge("ardour", "muse", mem=mem)
+            self.assertFalse(sim_muse["target_supports_freeze"])
+            self.assertIn("acoustic_gtr", sim_muse["bridged_tracks"])
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
 if __name__ == "__main__":
     unittest.main()

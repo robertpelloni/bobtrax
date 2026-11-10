@@ -1000,6 +1000,61 @@ class SessionMemory:
             "reason": "OK" if len(issues) == 0 else f"{len(issues)} transition pre-flight issues detected"
         }
 
+    def simulate_session_transition(self, from_daw, to_daw):
+        """Generates dry-run migration preview and compatibility matrix without mutating session state."""
+        preflight = self.validate_session_transition(from_daw, to_daw)
+
+        # DAW feature matrices
+        daw_features = {
+            "ardour": {"native_formats": ["LV2", "VST3", "LADSPA"], "supports_freeze": True, "pan_law": "linear"},
+            "lmms": {"native_formats": ["VST2", "LADSPA", "SoundFont"], "supports_freeze": True, "pan_law": "constant_power"},
+            "muse": {"native_formats": ["LV2", "LADSPA", "DSSI"], "supports_freeze": False, "pan_law": "linear"},
+            "zrythm": {"native_formats": ["LV2", "VST3", "CLAP"], "supports_freeze": True, "pan_law": "linear"},
+            "bobui": {"native_formats": ["LV2", "VST3", "CLAP", "VST2"], "supports_freeze": True, "pan_law": "linear"}
+        }
+
+        tgt_feats = daw_features.get(to_daw.lower(), {})
+        target_native = tgt_feats.get("native_formats", [])
+        supports_freeze = tgt_feats.get("supports_freeze", True)
+
+        compatible_tracks = []
+        bridged_tracks = []
+
+        for name, track in self.tracks.items():
+            needs_bridge = False
+            for p_key in track.parameters:
+                if "plugins" in p_key:
+                    # Check format compatibility
+                    fmt = "CLAP" if "clap" in p_key.lower() else ("LV2" if "lv2" in p_key.lower() else "VST3")
+                    if fmt not in target_native:
+                        needs_bridge = True
+                        break
+
+            if track.frozen and not supports_freeze:
+                needs_bridge = True
+
+            if needs_bridge:
+                bridged_tracks.append(name)
+            else:
+                compatible_tracks.append(name)
+
+        overall_score = round((len(compatible_tracks) / max(1, len(self.tracks))) * 100.0, 1)
+
+        return {
+            "status": "simulation_ready" if preflight["valid"] else "incompatible",
+            "from_daw": from_daw.lower(),
+            "to_daw": to_daw.lower(),
+            "preflight_valid": preflight["valid"],
+            "total_tracks": len(self.tracks),
+            "fully_compatible_tracks": compatible_tracks,
+            "bridged_tracks": bridged_tracks,
+            "compatibility_percentage": overall_score,
+            "target_pan_law": tgt_feats.get("pan_law", "linear"),
+            "target_supports_freeze": supports_freeze,
+            "preflight_issues": preflight["issues"],
+            "preflight_warnings": preflight["warnings"]
+        }
+
     def undo_last_action(self):
         """Reverts parameter changes introduced by the most recent AI mixing action."""
         if not self.action_history:

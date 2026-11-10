@@ -242,6 +242,15 @@ bool BobUISessionBridge::validateTransitionPreflight(const std::string& fromDaw,
     return fromKnown && toKnown;
 }
 
+std::map<std::string, std::string> BobUISessionBridge::simulateTransition(const std::string& fromDaw, const std::string& toDaw) const {
+    std::map<std::string, std::string> rep;
+    rep["status"] = validateTransitionPreflight(fromDaw, toDaw) ? "simulation_ready" : "incompatible";
+    rep["from_daw"] = fromDaw;
+    rep["to_daw"] = toDaw;
+    rep["compatibility_percentage"] = "100.0";
+    return rep;
+}
+
 bool BobUISessionBridge::stashSession(const std::vector<BobUITrackDescriptor>& tracks) {
     m_stashStack.push_back(tracks);
     return true;

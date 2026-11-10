@@ -1418,6 +1418,20 @@ class OmniDashboard(tk.Tk):
                     status_lbl.config(text=f"⚠ Fail: {res['reason']}", fg="#e06c75")
                     self.log(f"[Transition Pre-flight Error] {res['issues']}")
 
+        def _do_dry_run():
+            src = src_combo.get()
+            tgt = tgt_combo.get()
+            if session_memory:
+                mem = session_memory.SessionMemory()
+                sim = mem.simulate_session_transition(src, tgt)
+                pct = sim.get("compatibility_percentage", 0.0)
+                compat_cnt = len(sim.get("fully_compatible_tracks", []))
+                bridge_cnt = len(sim.get("bridged_tracks", []))
+                status_lbl.config(text=f"Dry-Run: {pct}% compatible ({compat_cnt} native, {bridge_cnt} bridged)", fg="#61afef")
+                self.log(f"[Transition Dry-Run] {src.upper()} -> {tgt.upper()} projected compatibility: {pct}%")
+                self.log(f"  • Native: {sim['fully_compatible_tracks']}")
+                self.log(f"  • Bridged / Pan-adapted: {sim['bridged_tracks']}")
+
         def _do_transition():
             src = src_combo.get()
             tgt = tgt_combo.get()
@@ -1444,6 +1458,7 @@ class OmniDashboard(tk.Tk):
         btn_row = tk.Frame(dialog)
         btn_row.pack(pady=12)
         ttk.Button(btn_row, text="Pre-flight Check", command=_do_preflight).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Dry-Run", command=_do_dry_run).pack(side="left", padx=4)
         ttk.Button(btn_row, text="Execute Transition", command=_do_transition).pack(side="left", padx=4)
         ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side="left", padx=4)
 

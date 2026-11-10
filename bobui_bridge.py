@@ -419,6 +419,12 @@ def ping_all_daw_endpoints_bridge(mem=None):
     return target_mem.ping_daw_endpoints()
 
 
+def simulate_session_transition_bridge(from_daw, to_daw, mem=None):
+    """Generates non-destructive dry-run migration preview and compatibility report."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.simulate_session_transition(from_daw, to_daw)
+
+
 def transition_session(from_daw, to_daw, target_file_path=None, mem=None):
     """Executes state-preserved session transition between two member DAWs."""
     target_mem = mem or session_memory.SessionMemory()

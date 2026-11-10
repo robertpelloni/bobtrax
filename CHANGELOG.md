@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.82] - 2026-03-30
+### Added
+- `simulate_session_transition()` in `session_memory.py` calculating feature and format compatibility projections for dry-run transitions.
+- `simulate_session_transition_bridge()` gateway in `bobui_bridge.py`.
+- `simulateTransition()` in `BobUISessionBridge` C++ adapter.
+- Interactive "Dry-Run" preview button and status summary in Transition to DAW dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionTransitionDryRunSimulation` in `tests/test_ecosystem.py`.
+
 ## [1.0.81] - 2026-03-30
 ### Added
 - `stress_test_headless_audio_stream()` in `bobui_bridge.py` supporting sustained multi-block throughput and jitter stress testing.
