@@ -1282,5 +1282,48 @@ class TestCheckpointBundleInterchange(unittest.TestCase):
                     os.remove(p)
 
 
+class TestCheckpointPruning(unittest.TestCase):
+    def test_prune_checkpoints_with_tag_protection(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.checkpoints.clear()
+
+            # Create 5 checkpoints
+            # cp0: root parent
+            mem.save_checkpoint("cp0", tag="milestone")
+            # cp1: milestone with custom tag
+            mem.save_checkpoint("cp1", tag="golden_master")
+            # cp2: untagged quick checkpoint
+            mem.save_checkpoint("cp2", tag="quick")
+            # cp3: untagged quick checkpoint
+            mem.save_checkpoint("cp3", tag="quick")
+            # cp4: branch child of cp0
+            mem.save_checkpoint("cp4", tag="branch_take", parent_checkpoint_id="cp0")
+
+            self.assertEqual(len(mem.checkpoints), 5)
+
+            # Prune to max 3 checkpoints, keeping tagged and parent branches
+            # cp0 is parent of cp4 -> kept
+            # cp1 has custom tag "golden_master" -> kept
+            # cp4 has custom tag "branch_take" -> kept
+            # Candidates to prune: cp2, cp3 (oldest untagged)
+            res = bobui_bridge.prune_checkpoints_bridge(max_checkpoints=3, keep_tagged=True, mem=mem)
+            self.assertEqual(res["status"], "ok")
+            self.assertEqual(res["pruned_count"], 2)
+            self.assertIn("cp2", res["pruned"])
+            self.assertIn("cp3", res["pruned"])
+            self.assertIn("cp0", mem.checkpoints)
+            self.assertIn("cp1", mem.checkpoints)
+            self.assertIn("cp4", mem.checkpoints)
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
 if __name__ == "__main__":
     unittest.main()

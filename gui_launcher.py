@@ -1819,6 +1819,23 @@ class OmniDashboard(tk.Tk):
                 except Exception as e:
                     self.log(f"[Import Bundle Error] {e}")
 
+        def _do_prune():
+            limit_str = simpledialog.askstring("Prune Checkpoints", "Retain max how many checkpoints? (Default: 10):", initialvalue="10")
+            if limit_str:
+                try:
+                    limit_val = int(limit_str.strip())
+                    rep = mem.prune_checkpoints(max_checkpoints=limit_val, keep_tagged=True)
+                    self.log(f"[Checkpoint Prune] Purged {rep['pruned_count']} obsolete checkpoints (remaining: {rep['remaining_count']}).")
+                    new_cps = mem.list_checkpoints()
+                    combo.config(values=new_cps)
+                    if new_cps:
+                        combo.set(new_cps[-1])
+                        _update_info()
+                    self.refresh_session_memory()
+                    messagebox.showinfo("Prune Checkpoints", f"Purged {rep['pruned_count']} checkpoints. {rep['remaining_count']} preserved.")
+                except Exception as e:
+                    self.log(f"[Prune Error] {e}")
+
         btn_row = tk.Frame(dialog)
         btn_row.pack(pady=10)
         ttk.Button(btn_row, text="Restore", command=_do_restore).pack(side="left", padx=2)
@@ -1826,6 +1843,7 @@ class OmniDashboard(tk.Tk):
         ttk.Button(btn_row, text="Verify", command=_do_verify).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Fork...", command=_do_fork).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Merge...", command=_do_merge_branch).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Prune...", command=_do_prune).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Export Bundle...", command=_do_export_bundle).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Import Bundle...", command=_do_import_bundle).pack(side="left", padx=2)
         ttk.Button(btn_row, text="Tag...", command=_do_tag).pack(side="left", padx=2)

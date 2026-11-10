@@ -777,6 +777,54 @@ class SessionMemory:
             "tracks": list(cp.get("snapshot", {}).keys())
         }
 
+    def prune_checkpoints(self, max_checkpoints=20, keep_tagged=True):
+        """Prunes oldest checkpoints exceeding max quota, preserving tagged milestones and branch parents."""
+        if len(self.checkpoints) <= max_checkpoints:
+            return {"status": "ok", "pruned_count": 0, "remaining_count": len(self.checkpoints), "pruned": []}
+
+        # Identify all checkpoints referenced as parents (branch roots/ancestors)
+        referenced_parents = set()
+        for cp in self.checkpoints.values():
+            p_id = cp.get("parent_checkpoint_id")
+            if p_id:
+                referenced_parents.add(p_id)
+
+        # Sort candidate checkpoints chronologically (oldest first)
+        candidates = []
+        for name, cp in self.checkpoints.items():
+            is_tagged = cp.get("tag") not in [None, "", "milestone", "quick", "imported_bundle"]
+            is_parent = name in referenced_parents
+            candidates.append({
+                "name": name,
+                "timestamp": cp.get("timestamp", 0),
+                "is_tagged": is_tagged,
+                "is_parent": is_parent
+            })
+
+        candidates.sort(key=lambda x: x["timestamp"])
+
+        to_remove = []
+        excess = len(self.checkpoints) - max_checkpoints
+        for c in candidates:
+            if len(to_remove) >= excess:
+                break
+            if keep_tagged and (c["is_tagged"] or c["is_parent"]):
+                continue
+            to_remove.append(c["name"])
+
+        for name in to_remove:
+            del self.checkpoints[name]
+
+        if to_remove:
+            self._save()
+
+        return {
+            "status": "ok",
+            "pruned_count": len(to_remove),
+            "remaining_count": len(self.checkpoints),
+            "pruned": to_remove
+        }
+
     def get_session_synchronization_metrics(self):
         """Calculates aggregate cross-DAW session synchronization health and statistics."""
         active_daws = self.get_active_daws(timeout=60.0)

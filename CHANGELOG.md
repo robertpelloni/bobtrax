@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.79] - 2026-03-30
+### Added
+- `prune_checkpoints()` in `session_memory.py` supporting quota-enforced auto-pruning with tag and branch protection.
+- `prune_checkpoints_bridge()` gateway in `bobui_bridge.py`.
+- `pruneCheckpoints()` in `BobUISessionBridge` C++ adapter.
+- Interactive "Prune..." action and quota threshold dialog in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointPruning` in `tests/test_ecosystem.py`.
+
 ## [1.0.78] - 2026-03-30
 ### Added
 - `export_checkpoint_bundle()` in `session_exporter.py` supporting portable multi-checkpoint bundle packaging.

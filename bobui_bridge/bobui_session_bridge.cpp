@@ -161,6 +161,33 @@ bool BobUISessionBridge::deleteCheckpoint(const std::string& name) {
     return false;
 }
 
+size_t BobUISessionBridge::pruneCheckpoints(size_t maxCheckpoints) {
+    if (m_checkpoints.size() <= maxCheckpoints) {
+        return 0;
+    }
+    size_t toRemove = m_checkpoints.size() - maxCheckpoints;
+    size_t removed = 0;
+    for (auto it = m_checkpoints.begin(); it != m_checkpoints.end() && removed < toRemove; ) {
+        // Only prune if not a parent of another branch
+        bool isParent = false;
+        for (const auto& pair : m_checkpointParents) {
+            if (pair.second == it->first) {
+                isParent = true;
+                break;
+            }
+        }
+        if (!isParent) {
+            m_checkpointParents.erase(it->first);
+            m_checkpointTags.erase(it->first);
+            it = m_checkpoints.erase(it);
+            ++removed;
+        } else {
+            ++it;
+        }
+    }
+    return removed;
+}
+
 bool BobUISessionBridge::forkCheckpoint(const std::string& srcId, const std::string& newName, const std::string& branchTag) {
     auto it = m_checkpoints.find(srcId);
     if (it == m_checkpoints.end()) {

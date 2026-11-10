@@ -283,6 +283,12 @@ def delete_session_checkpoint(name, mem=None):
     return target_mem.delete_checkpoint(name)
 
 
+def prune_checkpoints_bridge(max_checkpoints=20, keep_tagged=True, mem=None):
+    """Prunes obsolete untagged checkpoints from session memory."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.prune_checkpoints(max_checkpoints=max_checkpoints, keep_tagged=keep_tagged)
+
+
 def tag_session_checkpoint(name, tag, mem=None):
     """Tags a saved checkpoint with workflow category."""
     target_mem = mem or session_memory.SessionMemory()
