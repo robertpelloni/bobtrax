@@ -454,6 +454,14 @@ class OmniDashboard(tk.Tk):
         self.restore_snap_btn.pack(side="right", padx=2)
         ToolTip(self.restore_snap_btn, "Browse and restore previous session checkpoints across DAWs.")
 
+        self.stash_btn = ttk.Button(mem_ctrl_bar, text="📦 Stash", command=self.stash_session_action)
+        self.stash_btn.pack(side="right", padx=2)
+        ToolTip(self.stash_btn, "Temporarily push current in-flight mix onto the LIFO stash stack.")
+
+        self.pop_stash_btn = ttk.Button(mem_ctrl_bar, text="📤 Pop Stash", command=self.pop_stash_action)
+        self.pop_stash_btn.pack(side="right", padx=2)
+        ToolTip(self.pop_stash_btn, "Pop and restore the most recently stashed in-flight mix.")
+
         self.import_session_btn = ttk.Button(mem_ctrl_bar, text="Import Session...", command=self.import_session_dialog)
         self.import_session_btn.pack(side="right", padx=2)
         ToolTip(self.import_session_btn, "Import track faders and settings from an Ardour (.ardour) or LMMS (.mmp) file.")
@@ -1578,6 +1586,28 @@ class OmniDashboard(tk.Tk):
             tk.Label(r, text=val_text, font=("Monospace", 8), fg=color, bg="#21252b", anchor="w").pack(side="left", fill="x", expand=True)
 
         ttk.Button(dialog, text="Close", command=dialog.destroy).pack(pady=8)
+
+    def stash_session_action(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        res = mem.stash_session_state()
+        self.log(f"[Session Stash] Stashed in-flight mix as '{res['stash_name']}' (stash depth: {res['stash_depth']}, tracks: {res['tracks_stashed']}).")
+        self.refresh_session_memory()
+
+    def pop_stash_action(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        res = mem.pop_stash_session_state()
+        if res.get("restored"):
+            for t_name, track in mem.tracks.items():
+                self.send_osc_direct(f"/track/{t_name}/fader", track.fader)
+                self.send_osc_direct(f"/track/{t_name}/pan", track.pan)
+            self.log(f"[Session Stash] Restored stashed mix '{res['stash_name']}' ({res['tracks_restored']} tracks, remaining stash depth: {res['stash_depth']}).")
+            self.refresh_session_memory()
+        else:
+            messagebox.showinfo("Pop Stash", res.get("message", "Stash stack is empty."))
 
     def fast_bulk_sync_action(self):
         if not session_memory:

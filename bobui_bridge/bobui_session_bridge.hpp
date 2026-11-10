@@ -41,6 +41,8 @@ public:
     bool mergeCheckpointBranch(const std::string& srcId, const std::string& targetId);
     std::string getCheckpointParent(const std::string& id) const;
     bool validateTransitionPreflight(const std::string& fromDaw, const std::string& toDaw) const;
+    bool stashSession(const std::vector<BobUITrackDescriptor>& tracks);
+    std::vector<BobUITrackDescriptor> popStash();
     std::map<std::string, std::string> getSessionMetrics() const;
     std::vector<std::string> listCheckpoints() const;
     std::vector<BobUITrackDescriptor> undoLastAction();
@@ -54,6 +56,7 @@ private:
     std::map<std::string, std::vector<BobUITrackDescriptor>> m_checkpoints;
     std::map<std::string, std::string> m_checkpointParents;
     std::map<std::string, std::string> m_checkpointTags;
+    std::vector<std::vector<BobUITrackDescriptor>> m_stashStack;
     std::vector<std::vector<BobUITrackDescriptor>> m_undoHistory;
     std::vector<std::vector<BobUITrackDescriptor>> m_redoHistory;
 };

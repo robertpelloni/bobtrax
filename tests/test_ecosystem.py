@@ -1188,5 +1188,49 @@ class TestSessionTransitionPreflight(unittest.TestCase):
                 os.remove(temp_db)
 
 
+class TestSessionStateStash(unittest.TestCase):
+    def test_stash_and_pop_lifecycle(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.tracks.clear()
+
+            t1 = mem.get_or_create_track("lead_guitar")
+            t1.fader = -4.0
+            t1.pan = 0.3
+
+            # 1. Stash current mix
+            stash_res = mem.stash_session_state("my_stash")
+            self.assertEqual(stash_res["status"], "stashed")
+            self.assertEqual(stash_res["stash_depth"], 1)
+
+            # 2. Modify live mix
+            t1.fader = 0.0
+            t1.pan = -0.5
+            t2 = mem.get_or_create_track("backing_vox")
+            t2.fader = -1.0
+
+            # 3. Pop stash and verify restoration
+            pop_res = bobui_bridge.pop_stash_bridge(mem=mem)
+            self.assertEqual(pop_res["status"], "popped")
+            self.assertTrue(pop_res["restored"])
+            self.assertEqual(pop_res["stash_depth"], 0)
+            self.assertEqual(mem.tracks["lead_guitar"].fader, -4.0)
+            self.assertEqual(mem.tracks["lead_guitar"].pan, 0.3)
+            self.assertNotIn("backing_vox", mem.tracks)
+
+            # 4. Pop from empty stash
+            empty_pop = bobui_bridge.pop_stash_bridge(mem=mem)
+            self.assertEqual(empty_pop["status"], "error")
+            self.assertFalse(empty_pop["restored"])
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
 if __name__ == "__main__":
     unittest.main()

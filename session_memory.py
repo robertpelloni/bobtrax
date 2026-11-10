@@ -122,6 +122,7 @@ class SessionMemory:
         self.action_history = []
         self.redo_history = []
         self.pre_restore_backup = None
+        self.stash_stack = []
         self.checkpoints = {}
         self.omni_socket_path = DEFAULT_OMNI_SOCKET
         self.omni_synced_params = {}
@@ -813,6 +814,50 @@ class SessionMemory:
             "last_sync_str": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last_sync))
         }
 
+    def stash_session_state(self, stash_name=None):
+        """Pushes current in-flight session mixer state onto the LIFO stash stack."""
+        name = stash_name or f"stash_{int(time.time())}"
+        entry = {
+            "name": name,
+            "timestamp": time.time(),
+            "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "snapshot": {k: t.to_dict() for k, t in self.tracks.items()}
+        }
+        self.stash_stack.append(entry)
+        self._save()
+        return {
+            "status": "stashed",
+            "stash_name": name,
+            "stash_depth": len(self.stash_stack),
+            "tracks_stashed": len(entry["snapshot"])
+        }
+
+    def pop_stash_session_state(self, stash_name=None):
+        """Pops and restores the most recent (or named) stashed session state."""
+        if not self.stash_stack:
+            return {"status": "error", "message": "Stash stack is empty", "restored": False}
+
+        target_idx = -1
+        if stash_name:
+            for idx, item in enumerate(self.stash_stack):
+                if item["name"] == stash_name:
+                    target_idx = idx
+                    break
+            if target_idx == -1:
+                return {"status": "error", "message": f"Stash '{stash_name}' not found", "restored": False}
+
+        stashed = self.stash_stack.pop(target_idx)
+        data = stashed["snapshot"]
+        self.tracks = {k: TrackState.from_dict(v) for k, v in data.items()}
+        self._save()
+        return {
+            "status": "popped",
+            "stash_name": stashed["name"],
+            "stash_depth": len(self.stash_stack),
+            "tracks_restored": len(self.tracks),
+            "restored": True
+        }
+
     def validate_session_transition(self, from_daw, to_daw):
         """Runs pre-flight validation on current session state before executing DAW transition."""
         issues = []
@@ -962,6 +1007,7 @@ class SessionMemory:
             data = {
                 "tracks": {k: t.to_dict() for k, t in self.tracks.items()},
                 "history": self.action_history,
+                "stash": self.stash_stack,
                 "checkpoints": self.checkpoints
             }
             with open(self.storage_path, "w") as f:
@@ -983,6 +1029,7 @@ class SessionMemory:
                 for t_name, t_data in data.get("tracks", {}).items():
                     self.tracks[t_name] = TrackState.from_dict(t_data)
                 self.action_history = data.get("history", [])
+                self.stash_stack = data.get("stash", [])
                 self.checkpoints = data.get("checkpoints", {})
         except Exception as e:
             logging.warning(f"SessionMemory load warning: {e}")

@@ -215,6 +215,20 @@ bool BobUISessionBridge::validateTransitionPreflight(const std::string& fromDaw,
     return fromKnown && toKnown;
 }
 
+bool BobUISessionBridge::stashSession(const std::vector<BobUITrackDescriptor>& tracks) {
+    m_stashStack.push_back(tracks);
+    return true;
+}
+
+std::vector<BobUITrackDescriptor> BobUISessionBridge::popStash() {
+    if (m_stashStack.empty()) {
+        return {};
+    }
+    auto popped = m_stashStack.back();
+    m_stashStack.pop_back();
+    return popped;
+}
+
 std::map<std::string, std::string> BobUISessionBridge::getSessionMetrics() const {
     std::map<std::string, std::string> metrics;
     metrics["checkpoints_count"] = std::to_string(m_checkpoints.size());

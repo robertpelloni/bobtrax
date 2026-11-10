@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.77] - 2026-03-30
+### Added
+- `stash_session_state()` and `pop_stash_session_state()` in `session_memory.py` supporting LIFO session mix stashing.
+- `stash_session_bridge()` and `pop_stash_bridge()` gateways in `bobui_bridge.py`.
+- `stashSession()` and `popStash()` in `BobUISessionBridge` C++ adapter.
+- Interactive "📦 Stash" and "📤 Pop Stash" controls in Track Agent-Memory Hub in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionStateStash` in `tests/test_ecosystem.py`.
+
 ## [1.0.76] - 2026-03-30
 ### Added
 - `validate_session_transition()` in `session_memory.py` adding pre-flight sanity checks before DAW transitions.

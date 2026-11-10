@@ -331,6 +331,18 @@ def get_session_synchronization_metrics_bridge(mem=None):
     return target_mem.get_session_synchronization_metrics()
 
 
+def stash_session_bridge(stash_name=None, mem=None):
+    """Pushes current in-flight session mixer state onto the LIFO stash stack."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.stash_session_state(stash_name)
+
+
+def pop_stash_bridge(stash_name=None, mem=None):
+    """Pops and restores the most recent (or named) stashed session state."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.pop_stash_session_state(stash_name)
+
+
 def sync_session_diff(checkpoint_name, mem=None):
     """Calculates minimal parameter differences from checkpoint and pushes updates."""
     target_mem = mem or session_memory.SessionMemory()
