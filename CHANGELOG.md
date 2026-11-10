@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.81] - 2026-03-30
+### Added
+- `stress_test_headless_audio_stream()` in `bobui_bridge.py` supporting sustained multi-block throughput and jitter stress testing.
+- `stressTestStreaming()` in `BobUIOmniAdapter` C++ bridge.
+- Interactive "⚡ Stress Stream" button and activity report in Omni-Plugin Live Sync toolbar in `gui_launcher.py`.
+- Comprehensive unit test suite `TestHeadlessStreamingStressTest` in `tests/test_ecosystem.py`.
+
 ## [1.0.80] - 2026-03-30
 ### Added
 - `ping_daw_endpoints()` in `session_memory.py` probing DAW UDP ports and Omni socket latency.

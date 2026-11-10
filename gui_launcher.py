@@ -738,6 +738,10 @@ class OmniDashboard(tk.Tk):
         bench_dsp_btn.pack(side="right", padx=2)
         ToolTip(bench_dsp_btn, "Measure round-trip latency, jitter, and throughput across 128/256/512/1024-frame buffers.")
 
+        stress_dsp_btn = ttk.Button(bridge_status_bar, text="⚡ Stress Stream", command=self.stress_test_dsp_stream_action)
+        stress_dsp_btn.pack(side="right", padx=2)
+        ToolTip(stress_dsp_btn, "Stream 100 sustained consecutive audio blocks under continuous pressure to measure max latency spikes and jitter.")
+
         compat_btn = ttk.Button(bridge_status_bar, text="Check Plugin Compat", command=self.check_plugin_compat)
         compat_btn.pack(side="right", padx=2)
         ToolTip(compat_btn, "Query format compatibility across Ardour, LMMS, MusE, and Zrythm.")
@@ -2481,6 +2485,22 @@ class OmniDashboard(tk.Tk):
             except Exception as e:
                 self.after(0, lambda: self.log(f"[DSP Benchmark Error] {e}"))
         threading.Thread(target=_bench, daemon=True).start()
+
+    def stress_test_dsp_stream_action(self):
+        self.log("[DSP Stress Test] Streaming 100 sustained audio blocks (512 frames) under pressure...")
+        def _stress():
+            try:
+                import bobui_bridge
+                bridge = bobui_bridge.BobUIBridge()
+                rep = bridge.stress_test_headless_audio_stream(buffer_size=512, block_count=100)
+                self.after(0, lambda: self.log(
+                    f"[DSP Stress Test Report] {rep['total_frames']} frames in {rep['elapsed_seconds']}s "
+                    f"({rep['throughput_frames_per_sec']:.0f} fps). Dropped: {rep['dropped_blocks']} | "
+                    f"Mean Lat: {rep['mean_latency_ms']}ms | Peak Spike: {rep['max_latency_spike_ms']}ms | Jitter: {rep['jitter_ms']}ms"
+                ))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[DSP Stress Test Error] {e}"))
+        threading.Thread(target=_stress, daemon=True).start()
 
     def test_omni_bridge(self):
         self.log("Testing Omni-Plugin Bridge IPC & Standalone Host...")

@@ -1355,5 +1355,22 @@ class TestDawEndpointPingTelemetry(unittest.TestCase):
                 os.remove(temp_db)
 
 
+class TestHeadlessStreamingStressTest(unittest.TestCase):
+    def test_stress_test_headless_audio_stream(self):
+        import bobui_bridge
+
+        bridge = bobui_bridge.BobUIBridge(socket_path="/tmp/nonexistent_stress.sock")
+        report = bridge.stress_test_headless_audio_stream(buffer_size=256, block_count=20)
+
+        self.assertEqual(report["status"], "ok")
+        self.assertEqual(report["buffer_size"], 256)
+        self.assertEqual(report["block_count"], 20)
+        self.assertEqual(report["total_frames"], 5120)
+        self.assertGreater(report["throughput_frames_per_sec"], 0.0)
+        self.assertGreaterEqual(report["mean_latency_ms"], 0.0)
+        self.assertGreaterEqual(report["max_latency_spike_ms"], 0.0)
+        self.assertGreaterEqual(report["jitter_ms"], 0.0)
+
+
 if __name__ == "__main__":
     unittest.main()

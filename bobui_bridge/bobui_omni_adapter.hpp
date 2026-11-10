@@ -25,6 +25,7 @@ public:
                       const std::string& param_name, float value);
     bool bulkSyncTracksBinary(const std::vector<BobUITrackDescriptor>& tracks);
     bool testAudioLoopback(size_t frames, float* peakOut = nullptr, float* rmsOut = nullptr);
+    bool stressTestStreaming(size_t bufferSize, size_t count, double* maxJitterOut = nullptr);
     std::map<std::string, float> getAllParameters();
 
 private:

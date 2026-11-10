@@ -168,6 +168,42 @@ class BobUIBridge:
             }
         return results
 
+    def stress_test_headless_audio_stream(self, buffer_size=512, block_count=100):
+        """Streams sustained consecutive audio blocks, evaluating dropped frames, throughput, and jitter."""
+        t_start = time.time()
+        latencies = []
+        dropped = 0
+        total_frames = buffer_size * block_count
+
+        for _ in range(block_count):
+            t0 = time.time()
+            res = self.stream_headless_audio_chunk(sample_rate=48000, frames=buffer_size, format_type="f32le")
+            if res.get("status") in ["ok", "simulated"]:
+                lat = (time.time() - t0) * 1000.0
+                latencies.append(lat)
+            else:
+                dropped += 1
+
+        total_elapsed = max(1e-4, time.time() - t_start)
+        mean_lat = sum(latencies) / len(latencies) if latencies else 0.0
+        max_spike = max(latencies) if latencies else 0.0
+        min_lat = min(latencies) if latencies else 0.0
+        jitter = max_spike - min_lat
+        throughput_fps = (total_frames - (dropped * buffer_size)) / total_elapsed
+
+        return {
+            "status": "ok",
+            "buffer_size": buffer_size,
+            "block_count": block_count,
+            "total_frames": total_frames,
+            "dropped_blocks": dropped,
+            "throughput_frames_per_sec": round(throughput_fps, 2),
+            "mean_latency_ms": round(mean_lat, 2),
+            "max_latency_spike_ms": round(max_spike, 2),
+            "jitter_ms": round(jitter, 2),
+            "elapsed_seconds": round(total_elapsed, 3)
+        }
+
     def set_parameter(self, track_id, plugin_id, param_name, value):
         key = f"{track_id}:{plugin_id}:{param_name}"
         if not os.path.exists(self.socket_path):
