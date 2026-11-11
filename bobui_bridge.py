@@ -385,6 +385,24 @@ def pop_stash_bridge(stash_name=None, mem=None):
     return target_mem.pop_stash_session_state(stash_name)
 
 
+def add_session_marker_bridge(name, position_seconds, marker_type="cue", color="#61afef", mem=None):
+    """Adds a timeline arrangement marker or cue point."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.add_session_marker(name, position_seconds, marker_type, color)
+
+
+def remove_session_marker_bridge(marker_id_or_name, mem=None):
+    """Removes a timeline marker from session memory."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.remove_session_marker(marker_id_or_name)
+
+
+def list_session_markers_bridge(mem=None):
+    """Returns sorted list of timeline markers."""
+    target_mem = mem or session_memory.SessionMemory()
+    return target_mem.list_session_markers()
+
+
 def sync_session_diff(checkpoint_name, mem=None):
     """Calculates minimal parameter differences from checkpoint and pushes updates."""
     target_mem = mem or session_memory.SessionMemory()

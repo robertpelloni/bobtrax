@@ -18,6 +18,13 @@ struct BobUITrackDescriptor {
     bool frozen;
 };
 
+struct BobUIMarkerDescriptor {
+    std::string id;
+    std::string name;
+    double positionSeconds;
+    std::string type;
+};
+
 /**
  * BobUISessionBridge
  *
@@ -45,6 +52,9 @@ public:
     std::map<std::string, std::string> simulateTransition(const std::string& fromDaw, const std::string& toDaw) const;
     bool stashSession(const std::vector<BobUITrackDescriptor>& tracks);
     std::vector<BobUITrackDescriptor> popStash();
+    bool addMarker(const BobUIMarkerDescriptor& marker);
+    bool removeMarker(const std::string& id);
+    std::vector<BobUIMarkerDescriptor> listMarkers() const;
     bool pingEngine(const std::string& dawName, double* latencyMs = nullptr) const;
     bool exportCheckpointsBundle(const std::string& outPath) const;
     bool importCheckpointsBundle(const std::string& inPath);
@@ -62,6 +72,7 @@ private:
     std::map<std::string, std::string> m_checkpointParents;
     std::map<std::string, std::string> m_checkpointTags;
     std::vector<std::vector<BobUITrackDescriptor>> m_stashStack;
+    std::vector<BobUIMarkerDescriptor> m_markers;
     std::vector<std::vector<BobUITrackDescriptor>> m_undoHistory;
     std::vector<std::vector<BobUITrackDescriptor>> m_redoHistory;
 };

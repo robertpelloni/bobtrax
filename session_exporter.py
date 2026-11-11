@@ -21,13 +21,27 @@ def prettify_xml(elem):
     return reparsed.toprettyxml(indent="  ")
 
 
-def export_to_ardour(tracks, output_path):
-    """Generates an Ardour session XML template from active tracks."""
+def export_to_ardour(tracks, output_path, markers=None):
+    """Generates an Ardour session XML template from active tracks and timeline markers."""
     session = ET.Element("Session", {
         "version": "7.0.0",
         "name": os.path.splitext(os.path.basename(output_path))[0],
         "sample-rate": "48000"
     })
+
+    if markers:
+        locations = ET.SubElement(session, "Locations")
+        for idx, m in enumerate(markers):
+            pos_samples = int(m.get("position", 0.0) * 48000)
+            ET.SubElement(locations, "Location", {
+                "id": str(1000 + idx),
+                "name": m.get("name", f"Marker_{idx}"),
+                "start": str(pos_samples),
+                "end": str(pos_samples),
+                "flags": "IsMark",
+                "locked": "no"
+            })
+
     routes = ET.SubElement(session, "Routes")
 
     # Master Bus
@@ -70,8 +84,8 @@ def export_to_ardour(tracks, output_path):
     return output_path
 
 
-def export_to_lmms(tracks, output_path):
-    """Generates an LMMS project XML (.mmp) from active tracks."""
+def export_to_lmms(tracks, output_path, markers=None):
+    """Generates an LMMS project XML (.mmp) from active tracks and timeline markers."""
     lmms_project = ET.Element("lmms-project", {
         "version": "1.3.0",
         "creator": "Bobtrax Omni-Workspace",
@@ -79,6 +93,16 @@ def export_to_lmms(tracks, output_path):
     })
     head = ET.SubElement(lmms_project, "head", {"bpm": "120", "mastervol": "100"})
     song = ET.SubElement(lmms_project, "song")
+
+    if markers:
+        timeline = ET.SubElement(song, "timeline")
+        for idx, m in enumerate(markers):
+            ET.SubElement(timeline, "marker", {
+                "name": m.get("name", f"Marker_{idx}"),
+                "pos": str(int(m.get("position", 0.0) * 192)),
+                "type": m.get("type", "cue")
+            })
+
     trackcontainer = ET.SubElement(song, "trackcontainer")
 
     for t_name, t_state in tracks.items():
@@ -103,11 +127,12 @@ def export_to_lmms(tracks, output_path):
     return output_path
 
 
-def export_manifest(tracks, output_path):
-    """Exports a universal multi-track JSON manifest."""
+def export_manifest(tracks, output_path, markers=None):
+    """Exports a universal multi-track JSON manifest with arrangement markers."""
     manifest = {
         "generator": "Bobtrax Session Exporter",
-        "tracks": {}
+        "tracks": {},
+        "markers": markers or []
     }
     for t_name, t_state in tracks.items():
         if hasattr(t_state, "to_dict"):

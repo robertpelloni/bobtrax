@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.83] - 2026-03-30
+### Added
+- `add_session_marker()`, `remove_session_marker()`, and `list_session_markers()` in `session_memory.py` supporting timeline arrangement cues.
+- Marker persistence in `session_exporter.py` and `session_importer.py` across Ardour XML, LMMS XML, and universal JSON manifests.
+- `add_session_marker_bridge()`, `remove_session_marker_bridge()`, and `list_session_markers_bridge()` in `bobui_bridge.py`.
+- `addMarker()`, `removeMarker()`, and `listMarkers()` in `BobUISessionBridge` C++ adapter.
+- Interactive "📍 Markers..." action button and arrangement marker manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionTimelineMarkers` in `tests/test_ecosystem.py`.
+
 ## [1.0.82] - 2026-03-30
 ### Added
 - `simulate_session_transition()` in `session_memory.py` calculating feature and format compatibility projections for dry-run transitions.

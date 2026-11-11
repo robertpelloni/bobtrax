@@ -1411,5 +1411,52 @@ class TestSessionTransitionDryRunSimulation(unittest.TestCase):
                 os.remove(temp_db)
 
 
+class TestSessionTimelineMarkers(unittest.TestCase):
+    def test_marker_lifecycle_and_interchange(self):
+        import session_memory
+        import session_exporter
+        import session_importer
+        import bobui_bridge
+        import tempfile
+
+        db1 = tempfile.mktemp(suffix=".json")
+        db2 = tempfile.mktemp(suffix=".json")
+        out_ardour = tempfile.mktemp(suffix=".ardour")
+        out_lmms = tempfile.mktemp(suffix=".mmp")
+        out_manifest = tempfile.mktemp(suffix=".json")
+
+        try:
+            mem = session_memory.SessionMemory(storage_path=db1)
+            mem.markers.clear()
+
+            # 1. Add markers
+            m1 = bobui_bridge.add_session_marker_bridge("Intro", 0.0, marker_type="section", mem=mem)
+            m2 = bobui_bridge.add_session_marker_bridge("Chorus 1", 32.5, marker_type="cue", mem=mem)
+            self.assertEqual(len(mem.list_session_markers()), 2)
+            self.assertEqual(m1["name"], "Intro")
+            self.assertEqual(m2["position"], 32.5)
+
+            # 2. Export to Ardour, LMMS, Manifest
+            session_exporter.export_to_ardour(mem.tracks, out_ardour, markers=mem.markers)
+            session_exporter.export_to_lmms(mem.tracks, out_lmms, markers=mem.markers)
+            session_exporter.export_manifest(mem.tracks, out_manifest, markers=mem.markers)
+
+            # 3. Import back into clean mem2
+            mem2 = session_memory.SessionMemory(storage_path=db2)
+            mem2.markers.clear()
+            session_importer.import_from_manifest(out_manifest, memory_hub=mem2)
+            self.assertEqual(len(mem2.list_session_markers()), 2)
+            self.assertEqual(mem2.list_session_markers()[0]["name"], "Intro")
+
+            # 4. Remove marker
+            rem_ok = bobui_bridge.remove_session_marker_bridge("Intro", mem=mem)
+            self.assertTrue(rem_ok)
+            self.assertEqual(len(mem.list_session_markers()), 1)
+        finally:
+            for p in [db1, db2, out_ardour, out_lmms, out_manifest]:
+                if os.path.exists(p):
+                    os.remove(p)
+
+
 if __name__ == "__main__":
     unittest.main()

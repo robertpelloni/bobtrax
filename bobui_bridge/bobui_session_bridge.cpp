@@ -265,6 +265,26 @@ std::vector<BobUITrackDescriptor> BobUISessionBridge::popStash() {
     return popped;
 }
 
+bool BobUISessionBridge::addMarker(const BobUIMarkerDescriptor& marker) {
+    m_markers.push_back(marker);
+    return true;
+}
+
+bool BobUISessionBridge::removeMarker(const std::string& id) {
+    auto it = std::remove_if(m_markers.begin(), m_markers.end(), [&](const BobUIMarkerDescriptor& m) {
+        return m.id == id || m.name == id;
+    });
+    if (it != m_markers.end()) {
+        m_markers.erase(it, m_markers.end());
+        return true;
+    }
+    return false;
+}
+
+std::vector<BobUIMarkerDescriptor> BobUISessionBridge::listMarkers() const {
+    return m_markers;
+}
+
 bool BobUISessionBridge::pingEngine(const std::string& dawName, double* latencyMs) const {
     if (dawName.empty()) {
         return false;

@@ -73,6 +73,18 @@ def import_from_ardour(path, memory_hub=None):
             t.update_parameter("pan", pan)
 
     if memory_hub:
+        # Check for Location markers
+        for loc in root.findall(".//Location[@flags='IsMark']"):
+            loc_name = loc.attrib.get("name", "Marker")
+            start_samples = float(loc.attrib.get("start", 0))
+            pos_sec = start_samples / 48000.0
+            memory_hub.add_session_marker(loc_name, pos_sec)
+        # Check for timeline markers
+        for m_elem in root.findall(".//marker"):
+            m_name = m_elem.attrib.get("name", "Marker")
+            pos_raw = float(m_elem.attrib.get("pos", 0))
+            pos_sec = pos_raw / 192.0
+            memory_hub.add_session_marker(m_name, pos_sec)
         memory_hub._save()
 
     return imported_tracks
@@ -140,6 +152,8 @@ def import_from_manifest(path, memory_hub=None):
             t.muted = t_data.get("muted", False)
             t.soloed = t_data.get("soloed", False)
             t.parameters = t_data.get("parameters", {})
+        for m in data.get("markers", []):
+            memory_hub.add_session_marker(m.get("name", "Marker"), m.get("position", 0.0), marker_type=m.get("type", "cue"))
         memory_hub._save()
 
     return imported_tracks

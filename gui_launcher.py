@@ -462,6 +462,10 @@ class OmniDashboard(tk.Tk):
         self.pop_stash_btn.pack(side="right", padx=2)
         ToolTip(self.pop_stash_btn, "Pop and restore the most recently stashed in-flight mix.")
 
+        self.markers_btn = ttk.Button(mem_ctrl_bar, text="📍 Markers...", command=self.manage_markers_dialog)
+        self.markers_btn.pack(side="right", padx=2)
+        ToolTip(self.markers_btn, "View, add, and navigate cross-DAW timeline arrangement cue markers.")
+
         self.import_session_btn = ttk.Button(mem_ctrl_bar, text="Import Session...", command=self.import_session_dialog)
         self.import_session_btn.pack(side="right", padx=2)
         ToolTip(self.import_session_btn, "Import track faders and settings from an Ardour (.ardour) or LMMS (.mmp) file.")
@@ -1630,6 +1634,60 @@ class OmniDashboard(tk.Tk):
             tk.Label(r, text=val_text, font=("Monospace", 8), fg=color, bg="#21252b", anchor="w").pack(side="left", fill="x", expand=True)
 
         ttk.Button(dialog, text="Close", command=dialog.destroy).pack(pady=8)
+
+    def manage_markers_dialog(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Timeline Arrangement Markers & Cues")
+        dialog.geometry("450x320")
+        dialog.transient(self)
+
+        tk.Label(dialog, text="Cross-DAW Timeline Markers", font=("Helvetica", 10, "bold")).pack(pady=6)
+
+        list_box = tk.Listbox(dialog, bg="#1e1e24", fg="#abb2bf", font=("Monospace", 9), height=8)
+        list_box.pack(fill="both", expand=True, padx=12, pady=4)
+
+        def _refresh_list():
+            list_box.delete(0, tk.END)
+            for m in mem.list_session_markers():
+                pos = m.get("position", 0.0)
+                m_str = f"[{pos:>6.2f}s] {m.get('name'):<16} ({m.get('type')})"
+                list_box.insert(tk.END, m_str)
+
+        _refresh_list()
+
+        def _add_marker():
+            name = simpledialog.askstring("Add Marker", "Marker Name (e.g. Chorus 1, Drop, Verse):")
+            if name:
+                pos_str = simpledialog.askstring("Position", "Position in seconds (e.g. 32.5):", initialvalue="0.0")
+                try:
+                    pos = float(pos_str.strip()) if pos_str else 0.0
+                    m = mem.add_session_marker(name.strip(), pos)
+                    self.log(f"[Timeline Marker] Added '{m['name']}' at {m['position']}s.")
+                    self.send_osc_direct("/session/marker/add", pos)
+                    _refresh_list()
+                except ValueError:
+                    messagebox.showerror("Invalid Input", "Position must be a valid number of seconds.")
+
+        def _delete_marker():
+            sel = list_box.curselection()
+            if sel:
+                idx = sel[0]
+                markers = mem.list_session_markers()
+                if idx < len(markers):
+                    target = markers[idx]
+                    mem.remove_session_marker(target.get("id"))
+                    self.log(f"[Timeline Marker] Removed '{target.get('name')}'.")
+                    _refresh_list()
+
+        btn_row = tk.Frame(dialog)
+        btn_row.pack(pady=8)
+        ttk.Button(btn_row, text="Add Marker...", command=_add_marker).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Delete Selected", command=_delete_marker).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="left", padx=4)
 
     def stash_session_action(self):
         if not session_memory:

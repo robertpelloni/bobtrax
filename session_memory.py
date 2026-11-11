@@ -124,6 +124,7 @@ class SessionMemory:
         self.pre_restore_backup = None
         self.stash_stack = []
         self.checkpoints = {}
+        self.markers = []
         self.omni_socket_path = DEFAULT_OMNI_SOCKET
         self.omni_synced_params = {}
         self.registered_daws = {}
@@ -1155,10 +1156,41 @@ class SessionMemory:
             logging.debug(f"Omni-Plugin IPC send error: {e}")
             return False
 
+    def add_session_marker(self, name, position_seconds, marker_type="cue", color="#61afef"):
+        """Adds a timeline arrangement marker or cue point."""
+        marker_id = f"marker_{int(position_seconds * 1000)}_{len(self.markers)}"
+        marker_entry = {
+            "id": marker_id,
+            "name": name,
+            "position": round(float(position_seconds), 3),
+            "type": marker_type,
+            "color": color,
+            "created_at": time.time()
+        }
+        self.markers.append(marker_entry)
+        self.markers.sort(key=lambda m: m["position"])
+        self._save()
+        return marker_entry
+
+    def remove_session_marker(self, marker_id_or_name):
+        """Removes a timeline marker by id or name."""
+        initial_len = len(self.markers)
+        self.markers = [m for m in self.markers if m.get("id") != marker_id_or_name and m.get("name") != marker_id_or_name]
+        removed = initial_len - len(self.markers)
+        if removed > 0:
+            self._save()
+            return True
+        return False
+
+    def list_session_markers(self):
+        """Returns sorted list of timeline markers."""
+        return list(self.markers)
+
     def get_summary(self):
         return {
             "total_tracks": len(self.tracks),
             "tracks": {k: t.to_dict() for k, t in self.tracks.items()},
+            "markers": self.markers,
             "recent_actions": self.action_history[-5:],
             "omni_synced_params": self.omni_synced_params
         }
@@ -1169,7 +1201,8 @@ class SessionMemory:
                 "tracks": {k: t.to_dict() for k, t in self.tracks.items()},
                 "history": self.action_history,
                 "stash": self.stash_stack,
-                "checkpoints": self.checkpoints
+                "checkpoints": self.checkpoints,
+                "markers": self.markers
             }
             with open(self.storage_path, "w") as f:
                 json.dump(data, f, indent=2)
@@ -1192,6 +1225,7 @@ class SessionMemory:
                 self.action_history = data.get("history", [])
                 self.stash_stack = data.get("stash", [])
                 self.checkpoints = data.get("checkpoints", {})
+                self.markers = data.get("markers", [])
         except Exception as e:
             logging.warning(f"SessionMemory load warning: {e}")
 
