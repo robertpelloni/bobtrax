@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import sys
+import time
 import xml.etree.ElementTree as ET
 
 
@@ -34,30 +35,56 @@ def import_from_ardour(path, memory_hub=None):
         clean_name = re.sub(r'[^a-zA-Z0-9_-]', '', name).lower()
         muted = route.attrib.get("muted") == "1"
         soloed = route.attrib.get("soloed") == "1"
+        frozen = route.attrib.get("frozen") == "1"
 
-        # Find gain control if available
+        # Find gain and pan controls if available
         fader = 0.0
-        control = route.find(".//Control[@name='gaincontrol']")
-        if control is not None and "value" in control.attrib:
+        pan = 0.0
+        gain_ctrl = route.find(".//Control[@name='gaincontrol']")
+        if gain_ctrl is not None and "value" in gain_ctrl.attrib:
             try:
-                fader = float(control.attrib["value"])
+                fader = float(gain_ctrl.attrib["value"])
+            except ValueError:
+                pass
+
+        pan_ctrl = route.find(".//Control[@name='pancontrol']")
+        if pan_ctrl is not None and "value" in pan_ctrl.attrib:
+            try:
+                pan = float(pan_ctrl.attrib["value"])
             except ValueError:
                 pass
 
         imported_tracks[clean_name] = {
             "fader": fader,
+            "pan": pan,
             "muted": muted,
-            "soloed": soloed
+            "soloed": soloed,
+            "frozen": frozen
         }
 
         if memory_hub:
             t = memory_hub.get_or_create_track(clean_name)
             t.fader = fader
+            t.pan = pan
             t.muted = muted
             t.soloed = soloed
+            t.frozen = frozen
             t.update_parameter("fader", fader)
+            t.update_parameter("pan", pan)
 
     if memory_hub:
+        # Check for Location markers
+        for loc in root.findall(".//Location[@flags='IsMark']"):
+            loc_name = loc.attrib.get("name", "Marker")
+            start_samples = float(loc.attrib.get("start", 0))
+            pos_sec = start_samples / 48000.0
+            memory_hub.add_session_marker(loc_name, pos_sec)
+        # Check for timeline markers
+        for m_elem in root.findall(".//marker"):
+            m_name = m_elem.attrib.get("name", "Marker")
+            pos_raw = float(m_elem.attrib.get("pos", 0))
+            pos_sec = pos_raw / 192.0
+            memory_hub.add_session_marker(m_name, pos_sec)
         memory_hub._save()
 
     return imported_tracks
@@ -80,17 +107,28 @@ def import_from_lmms(path, memory_hub=None):
         clean_name = re.sub(r'[^a-zA-Z0-9_-]', '', name).lower()
         muted = track.attrib.get("muted") == "1"
         soloed = track.attrib.get("solo") == "1"
+        frozen = track.attrib.get("frozen") == "1"
+        pan_raw = track.attrib.get("pan", "0")
+        try:
+            pan = float(pan_raw) / 100.0
+        except ValueError:
+            pan = 0.0
 
         imported_tracks[clean_name] = {
             "fader": 0.0,
+            "pan": pan,
             "muted": muted,
-            "soloed": soloed
+            "soloed": soloed,
+            "frozen": frozen
         }
 
         if memory_hub:
             t = memory_hub.get_or_create_track(clean_name)
+            t.pan = pan
             t.muted = muted
             t.soloed = soloed
+            t.frozen = frozen
+            t.update_parameter("pan", pan)
 
     if memory_hub:
         memory_hub._save()
@@ -114,9 +152,44 @@ def import_from_manifest(path, memory_hub=None):
             t.muted = t_data.get("muted", False)
             t.soloed = t_data.get("soloed", False)
             t.parameters = t_data.get("parameters", {})
+        for m in data.get("markers", []):
+            memory_hub.add_session_marker(m.get("name", "Marker"), m.get("position", 0.0), marker_type=m.get("type", "cue"))
         memory_hub._save()
 
     return imported_tracks
+
+
+def import_checkpoint_bundle(bundle_path, mem=None, overwrite_existing=True):
+    """Imports packaged checkpoints and branch lineages from a JSON bundle into session memory."""
+    import session_memory
+    target_mem = mem or session_memory.SessionMemory()
+
+    with open(bundle_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    cps = data.get("checkpoints", {})
+    imported_count = 0
+
+    for name, cp_info in cps.items():
+        if name in target_mem.checkpoints and not overwrite_existing:
+            continue
+
+        target_mem.checkpoints[name] = {
+            "timestamp": cp_info.get("timestamp", time.time()),
+            "time_str": cp_info.get("time_str", time.strftime("%Y-%m-%d %H:%M:%S")),
+            "tag": cp_info.get("tag", "imported_bundle"),
+            "parent_checkpoint_id": cp_info.get("parent_checkpoint_id"),
+            "snapshot": cp_info.get("snapshot", {})
+        }
+        imported_count += 1
+
+    target_mem._save()
+    return {
+        "status": "success",
+        "bundle_generator": data.get("generator"),
+        "checkpoints_imported": imported_count,
+        "total_checkpoints_in_session": len(target_mem.checkpoints)
+    }
 
 
 def main():

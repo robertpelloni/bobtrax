@@ -2,6 +2,220 @@
 
 All notable changes to this project will be documented in this file.
 
+## [1.0.83] - 2026-03-30
+### Added
+- `add_session_marker()`, `remove_session_marker()`, and `list_session_markers()` in `session_memory.py` supporting timeline arrangement cues.
+- Marker persistence in `session_exporter.py` and `session_importer.py` across Ardour XML, LMMS XML, and universal JSON manifests.
+- `add_session_marker_bridge()`, `remove_session_marker_bridge()`, and `list_session_markers_bridge()` in `bobui_bridge.py`.
+- `addMarker()`, `removeMarker()`, and `listMarkers()` in `BobUISessionBridge` C++ adapter.
+- Interactive "📍 Markers..." action button and arrangement marker manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionTimelineMarkers` in `tests/test_ecosystem.py`.
+
+## [1.0.82] - 2026-03-30
+### Added
+- `simulate_session_transition()` in `session_memory.py` calculating feature and format compatibility projections for dry-run transitions.
+- `simulate_session_transition_bridge()` gateway in `bobui_bridge.py`.
+- `simulateTransition()` in `BobUISessionBridge` C++ adapter.
+- Interactive "Dry-Run" preview button and status summary in Transition to DAW dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionTransitionDryRunSimulation` in `tests/test_ecosystem.py`.
+
+## [1.0.81] - 2026-03-30
+### Added
+- `stress_test_headless_audio_stream()` in `bobui_bridge.py` supporting sustained multi-block throughput and jitter stress testing.
+- `stressTestStreaming()` in `BobUIOmniAdapter` C++ bridge.
+- Interactive "⚡ Stress Stream" button and activity report in Omni-Plugin Live Sync toolbar in `gui_launcher.py`.
+- Comprehensive unit test suite `TestHeadlessStreamingStressTest` in `tests/test_ecosystem.py`.
+
+## [1.0.80] - 2026-03-30
+### Added
+- `ping_daw_endpoints()` in `session_memory.py` probing DAW UDP ports and Omni socket latency.
+- `ping_all_daw_endpoints_bridge()` gateway in `bobui_bridge.py`.
+- `pingEngine()` in `BobUISessionBridge` C++ adapter.
+- Interactive "⚡ Ping DAWs" action button and dynamic latency badges on workstation cards in `gui_launcher.py`.
+- Comprehensive unit test suite `TestDawEndpointPingTelemetry` in `tests/test_ecosystem.py`.
+
+## [1.0.79] - 2026-03-30
+### Added
+- `prune_checkpoints()` in `session_memory.py` supporting quota-enforced auto-pruning with tag and branch protection.
+- `prune_checkpoints_bridge()` gateway in `bobui_bridge.py`.
+- `pruneCheckpoints()` in `BobUISessionBridge` C++ adapter.
+- Interactive "Prune..." action and quota threshold dialog in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointPruning` in `tests/test_ecosystem.py`.
+
+## [1.0.78] - 2026-03-30
+### Added
+- `export_checkpoint_bundle()` in `session_exporter.py` supporting portable multi-checkpoint bundle packaging.
+- `import_checkpoint_bundle()` in `session_importer.py` supporting direct checkpoint bundle ingestion into session memory.
+- `export_checkpoint_bundle_bridge()` and `import_checkpoint_bundle_bridge()` gateways in `bobui_bridge.py`.
+- `exportCheckpointsBundle()` and `importCheckpointsBundle()` in `BobUISessionBridge` C++ adapter.
+- Interactive "Export Bundle..." and "Import Bundle..." actions in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointBundleInterchange` in `tests/test_ecosystem.py`.
+
+## [1.0.77] - 2026-03-30
+### Added
+- `stash_session_state()` and `pop_stash_session_state()` in `session_memory.py` supporting LIFO session mix stashing.
+- `stash_session_bridge()` and `pop_stash_bridge()` gateways in `bobui_bridge.py`.
+- `stashSession()` and `popStash()` in `BobUISessionBridge` C++ adapter.
+- Interactive "📦 Stash" and "📤 Pop Stash" controls in Track Agent-Memory Hub in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionStateStash` in `tests/test_ecosystem.py`.
+
+## [1.0.76] - 2026-03-30
+### Added
+- `validate_session_transition()` in `session_memory.py` adding pre-flight sanity checks before DAW transitions.
+- Pre-flight transition validation gate inside `transition_session()` in `bobui_bridge.py`.
+- `validateTransitionPreflight()` in `BobUISessionBridge` C++ adapter.
+- Interactive "Pre-flight Check" button and status display in Transition to DAW dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionTransitionPreflight` in `tests/test_ecosystem.py`.
+
+## [1.0.75] - 2026-03-30
+### Added
+- `get_session_synchronization_metrics()` in `session_memory.py` reporting cross-DAW health, active DAWs, track flags, and checkpoint lineage depth.
+- `get_session_synchronization_metrics_bridge()` gateway in `bobui_bridge.py`.
+- `getSessionMetrics()` in `BobUISessionBridge` C++ adapter.
+- Interactive "📊 Sync Health" dialog button in Track Agent-Memory Hub in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionSynchronizationMetrics` in `tests/test_ecosystem.py`.
+
+## [1.0.74] - 2026-03-30
+### Added
+- `verify_audio_buffer_loopback()` in `bobui_bridge.py` supporting audio buffer injection, peak, RMS energy, and latency measurements.
+- `INJECT_AUDIO_STREAM` frame parsing in `omni_plugin_bridge/src/lib.rs`.
+- `testAudioLoopback()` in `bobui_omni_adapter` C++ bridge.
+- "🔊 Loopback Test" action button in Track Agent-Memory Hub in `gui_launcher.py`.
+- Comprehensive unit test suite `TestAudioBufferLoopback` in `tests/test_ecosystem.py`.
+
+## [1.0.73] - 2026-03-30
+### Added
+- `fast_sync_bulk_tracks()` in `bobui_bridge.py` supporting high-throughput atomic transmission of track parameters.
+- `BULK_SYNC` frame parsing in `omni_plugin_bridge/src/lib.rs` for atomic parameter insertion.
+- `bulkSyncTracksBinary()` in `bobui_omni_adapter` C++ bridge.
+- "⚡ Fast Bulk Sync" action in Track Agent-Memory Hub in `gui_launcher.py`.
+- Comprehensive unit test suite `TestBulkFastSync` in `tests/test_ecosystem.py`.
+
+## [1.0.72] - 2026-03-30
+### Added
+- `merge_checkpoint_branch()` in `session_memory.py` supporting branch merging into checkpoints or live state with conflict strategies (`merge_latest`, `overwrite_remote`, `keep_local`).
+- `merge_checkpoint_branch_bridge()` gateway in `bobui_bridge.py`.
+- Native C++ `mergeCheckpointBranch()` in `BobUISessionBridge`.
+- Interactive "Merge..." branch dialog in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointBranchMerging` in `tests/test_ecosystem.py`.
+
+## [1.0.71] - 2026-03-30
+### Added
+- `fork_checkpoint()` and `get_checkpoint_lineage()` in `session_memory.py` supporting branching snapshots with parent ancestor history.
+- `fork_session_checkpoint()` and `get_checkpoint_lineage_bridge()` gateways in `bobui_bridge.py`.
+- Native C++ `forkCheckpoint()` and `getCheckpointParent()` in `BobUISessionBridge`.
+- Interactive "Fork..." button and branch lineage display in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointBranchingAndLineage` in `tests/test_ecosystem.py`.
+
+## [1.0.70] - 2026-03-30
+### Added
+- `export_session_diff_patch()` in `session_exporter.py` exporting structured JSON diff patches between checkpoints or checkpoint vs live state.
+- `export_diff_patch_bridge()` gateway in `bobui_bridge.py`.
+- "Export Diff Patch..." button in Checkpoint Visual Diff comparison dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionDiffPatchExport` in `tests/test_ecosystem.py`.
+
+## [1.0.69] - 2026-03-30
+### Added
+- `benchmark_headless_dsp_streaming()` in `bobui_bridge.py` evaluating mean latency and jitter across multi-buffer sizes.
+- Interactive "Benchmark DSP Stream" action in `gui_launcher.py` with multi-buffer telemetry reports.
+- Comprehensive unit test suite `TestHeadlessDspStreamingBenchmark` in `tests/test_ecosystem.py`.
+
+## [1.0.68] - 2026-03-30
+### Added
+- `BRIDGE_STATS` routing counters and live transport state tracking (`get_bridge_telemetry_summary()`) in `osc_bridge.py`.
+- Real-time `TRANSPORT` telemetry events from `osc_bridge.py` reflected dynamically on transport buttons in `gui_launcher.py`.
+- Comprehensive unit test suite `TestOscBridgeTransportFeedback` in `tests/test_ecosystem.py`.
+
+## [1.0.67] - 2026-03-30
+### Added
+- `revert_to_pre_restore_state()` in `session_memory.py` with automatic `pre_restore_backup` snapshotting on checkpoint restore.
+- `revert_pre_restore_bridge()` gateway in `bobui_bridge.py`.
+- "Undo Restore" rollback action in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointRestoreRollback` in `tests/test_ecosystem.py`.
+
+## [1.0.66] - 2026-03-30
+### Added
+- `validate_checkpoint_integrity()` in `session_memory.py` validating finite numbers, non-empty tracks, and safe bounds.
+- `validate_session_checkpoint()` gateway in `bobui_bridge.py`.
+- Interactive "Verify" integrity inspection action in Checkpoint Manager dialog in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCheckpointIntegrityGuard` in `tests/test_ecosystem.py`.
+
+## [1.0.65] - 2026-03-30
+### Added
+- Native C++ `importSessionFromLMMS()`, `deleteCheckpoint()`, and `listCheckpoints()` in `BobUISessionBridge`.
+- Quick snapshot actions ("Save Snap" and "Revert Base") in the MUSE Universal Command Palette in `gui_launcher.py`.
+- Comprehensive unit test suite `TestCppSessionBridgeInterchange` in `tests/test_ecosystem.py`.
+
+## [1.0.64] - 2026-03-30
+### Added
+- Pan and freeze attribute persistence in `session_exporter.py` and `session_importer.py` for Ardour and LMMS formats.
+- Complete metadata telemetry logging in `import_session_dialog` and `export_session_dialog` in `gui_launcher.py`.
+- Comprehensive unit test suite `TestSessionExportImportExtended` in `tests/test_ecosystem.py`.
+
+## [1.0.63] - 2026-03-30
+### Added
+- Checkpoint tagging and deletion in `session_memory.py` (`tag_checkpoint`, `delete_checkpoint`).
+- `tag_session_checkpoint()` and `delete_session_checkpoint()` in `bobui_bridge.py`.
+- Interactive Checkpoint Manager dialog in `gui_launcher.py` with metadata tagging and deletion controls.
+- Comprehensive unit test suite `TestCheckpointManagement` in `tests/test_ecosystem.py`.
+
+## [1.0.62] - 2026-03-30
+### Added
+- Extended binary serialization layout with stereo pan and frozen flags in C++ `BobUISessionBridge` and Python `fast_sync_track_state`.
+- Added stereo pan scale to mixer channel strips in `gui_launcher.py` with live OSC and binary broadcast.
+- Added `pan` attribute to `TrackState` in `session_memory.py`.
+- Comprehensive unit test suite `TestBinarySerializationExtended` in `tests/test_ecosystem.py`.
+
+## [1.0.61] - 2026-03-30
+### Added
+- Multi-track freeze and offline cache engine in `session_memory.py` (`freeze_track`, `unfreeze_track`) with `frozen` and `freeze_file` attributes on `TrackState`.
+- `freeze_track_bridge()` and `unfreeze_track_bridge()` in `bobui_bridge.py`.
+- Interactive freeze toggle button ("F") on mixer channel strips in `gui_launcher.py` with fader locking.
+- Comprehensive unit test suite `TestTrackFreezeEngine` in `tests/test_ecosystem.py`.
+
+## [1.0.60] - 2026-03-30
+### Added
+- `broadcast_session_state_safe()` in `bobui_bridge.py` featuring circular echo-suppression caching and origin DAW exclusion.
+- Interactive "Test Sync Loop" probe in `gui_launcher.py` validating feedback-free parameter broadcasting.
+- Comprehensive unit test suite `TestSessionBroadcastEchoSuppression` in `tests/test_ecosystem.py`.
+
+## [1.0.59] - 2026-03-30
+### Added
+- `resolve_plugin_format_bridge()` in `bobui_bridge.py` determining native vs bridged execution paths and latency overheads across Ardour, LMMS, MusE, and Zrythm.
+- `scan_system_plugins()` system plugin discovery and format categorization helper.
+- Interactive Cross-DAW Plugin Format Compatibility & Bridge Matrix dialog in `gui_launcher.py` with dynamic rescan.
+- Comprehensive unit test suite `TestPluginFormatResolution` in `tests/test_ecosystem.py`.
+
+## [1.0.58] - 2026-03-30
+### Added
+- `compare_session_snapshots()` in `session_memory.py` calculating fine-grained track parameter differences between any two checkpoints or against live state.
+- `compare_session_checkpoints()` gateway in `bobui_bridge.py`.
+- Interactive "Compare Checkpoints..." action button and `compare_checkpoints_dialog` inspector in `gui_launcher.py` with differential parameter rendering.
+- Comprehensive unit test suite `TestSessionDiffComparison` in `tests/test_ecosystem.py`.
+
+## [1.0.57] - 2026-03-30
+### Added
+- `STREAM_AUDIO_BLOCK` protocol command in `omni_plugin_bridge/src/lib.rs` supporting real-time sample rates, frame lengths, format types, peak detection, and latency tracking.
+- `stream_headless_audio_chunk()` in `bobui_bridge.py` with simulated fallback when host socket is not active.
+- Persistent process loop in standalone `omni_host.rs` to serve continuous IPC connections.
+- Interactive "Stream Headless Chunk" button in `gui_launcher.py` with live stream telemetry output.
+- Comprehensive unit test suite `TestHeadlessAudioStreaming` in `tests/test_ecosystem.py`.
+
+## [1.0.56] - 2026-03-30
+### Added
+- Bidirectional Undo/Redo stack engine in `session_memory.py` with `redo_last_action` and forward redo history clearing on fresh actions.
+- C++ `BobUISessionBridge::redoSessionAction()` in `bobui_bridge/bobui_session_bridge.hpp` / `.cpp`.
+- Exposed `redo_session_action()` in `bobui_bridge.py`.
+- Interactive "Redo Move" button in `gui_launcher.py` dispatching restored parameters over OSC.
+- Comprehensive unit test suite `TestUndoRedoStack` in `tests/test_ecosystem.py`.
+
+## [1.0.55] - 2026-03-30
+### Added
+- Session Conflict Resolution & Auto-Merge Engine in `session_memory.py` supporting `merge_latest`, `overwrite_remote`, and `keep_local` conflict strategies.
+- Exposed `merge_foreign_session()` in `bobui_bridge.py`.
+- Interactive "Merge Session (Conflict Safe)..." dialog in `gui_launcher.py` with conflict reporting, live OSC parameter dispatch, and strategy selection.
+- Comprehensive unit test suite additions in `tests/test_ecosystem.py` covering all three conflict resolution strategies and foreign session file merging.
+
 ## [1.0.33] - 2026-11-04
 ### Added
 - Cross-DAW Session Importer engine in `session_importer.py` for direct ingestion of Ardour XML (`.ardour`), LMMS XML (`.mmp`), and universal JSON manifests into `session_memory.py`.
@@ -13,6 +227,67 @@ All notable changes to this project will be documented in this file.
 - Continuous Background System Health Watchdog daemon in `health_watchdog.py` probing HTTP, TCP, UDP, and Unix socket endpoints with self-healing capabilities.
 - Live "WATCHDOG: Active" status badge and automatic background monitoring thread in `gui_launcher.py`.
 - Automated test coverage for watchdog diagnostic probes in `tests/test_ecosystem.py`.
+
+## [1.0.54] - 2026-03-30
+### Added
+- Cross-DAW Plugin Compatibility Format Registry (`PLUGIN_COMPATIBILITY_REGISTRY` and `query_plugin_compatibility`) in `bobui_bridge.py`.
+- Rust Omni-Plugin Host plugin info query protocol (`GET_PLUGIN_INFO <id>`) in `omni_plugin_bridge/src/lib.rs`.
+- Interactive "Check Plugin Compat" probe button in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_plugin_compatibility_registry` in `tests/test_ecosystem.py` (29/29 tests passing).
+
+## [1.0.53] - 2026-03-30
+### Added
+- Session Transition Verification & Auto-Rollback (`verify_and_rollback_transition`) in `bobui_bridge.py`.
+- Safe transition checkbox option in OmniDashboard (`gui_launcher.py`) providing automatic snapshot restoration on transfer errors.
+- Automated unit test coverage `test_transition_rollback_on_failure` in `tests/test_ecosystem.py` (28/28 tests passing).
+
+## [1.0.52] - 2026-03-30
+### Added
+- Cross-DAW Session Transition State Machine (`transition_session`) in `bobui_bridge.py` managing state snapshots, foreign file synthesis, and target DAW live synchronization.
+- Interactive "Transition to DAW..." dialog in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_transition_session_workflow` in `tests/test_ecosystem.py` (27/27 tests passing).
+
+## [1.0.51] - 2026-03-30
+### Added
+- Multi-DAW Concurrent Session Synchronization Harness (`sync_session_across_daws`) in `bobui_bridge.py`.
+- Interactive "Broadcast to All DAWs" button in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_sync_session_across_daws` in `tests/test_ecosystem.py` (26/26 tests passing).
+
+## [1.0.50] - 2026-03-30
+### Added
+- Multi-DAW Session Broadcast Bus (`broadcast_track_update`) in `bobui_bridge.py` dispatching simultaneous low-latency binary frames and normalized OSC to member DAWs.
+- Connected channel strip fader and mute/solo callbacks in `gui_launcher.py` to `broadcast_track_update`.
+- Automated unit test coverage `test_bobui_broadcast_track_update` in `tests/test_ecosystem.py` (25/25 tests passing).
+
+## [1.0.49] - 2026-03-30
+### Added
+- Session State Minimal Diff Calculation & Patch Application (`compute_state_diff`, `apply_state_diff`) in `session_memory.py`.
+- Exposed incremental patch synchronization in `bobui_bridge.py` and added "Sync Diff to Base" button in `gui_launcher.py`.
+- Automated unit test coverage `test_session_state_diff_and_patch` in `tests/test_ecosystem.py` (24/24 tests passing).
+
+## [1.0.48] - 2026-03-30
+### Added
+- Low-latency binary track state serialization (`serializeTrackStateBinary`, `deserializeTrackStateBinary`) in native C++ `BobUISessionBridge`.
+- Python fast-sync binary encoder (`fast_sync_track_state`) in `bobui_bridge.py`.
+- Automated unit test coverage `test_fast_sync_binary_state` in `tests/test_ecosystem.py` (23/23 tests passing).
+
+## [1.0.47] - 2026-03-30
+### Added
+- Session Track Role Re-Inference and Consistency Check (`audit_session_consistency`, `reclassify_track_roles`) in `session_memory.py`.
+- Exposed session consistency audit in `bobui_bridge.py` and added "Audit Consistency" tool button in `gui_launcher.py`.
+- Automated unit test coverage `test_session_consistency_audit` in `tests/test_ecosystem.py` (22/22 tests passing).
+
+## [1.0.46] - 2026-03-30
+### Added
+- Background Session Auto-Save Daemon (`enable_auto_save`, `disable_auto_save`) in `session_memory.py` periodically persisting state and broadcasting manifests.
+- Auto-Save toggle checkbox and clean shutdown handling in OmniDashboard (`gui_launcher.py`).
+- Automated unit test coverage `test_session_auto_save_lifecycle` in `tests/test_ecosystem.py` (21/21 tests passing).
+
+## [1.0.45] - 2026-03-30
+### Added
+- Checkpoint metadata inspector `get_checkpoint_details` in `session_memory.py`.
+- Interactive Checkpoint Restore dialog and "Restore Checkpoint..." browser in `gui_launcher.py`.
+- Automated unit test coverage `test_checkpoint_metadata_details` in `tests/test_ecosystem.py` (20/20 tests passing).
 
 ## [1.0.44] - 2026-03-30
 ### Added

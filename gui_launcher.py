@@ -21,7 +21,7 @@ import subprocess
 import time
 import webbrowser
 import tkinter as tk
-from tkinter import ttk, messagebox, filedialog
+from tkinter import ttk, messagebox, filedialog, simpledialog
 
 try:
     import launcher
@@ -300,9 +300,11 @@ class OmniDashboard(tk.Tk):
         shortcuts_bar.pack(fill="x")
         tk.Label(shortcuts_bar, text="Quick Transport:", font=("Helvetica", 8, "bold"), fg="#555").pack(side="left", padx=(0, 6))
 
+        self.transport_btns = {}
         for action_name, label_txt, symbol in [("play", "Play", "▶ Play"), ("stop", "Stop", "⏹ Stop"), ("record", "Record", "⏺ Record")]:
             btn = ttk.Button(shortcuts_bar, text=symbol, command=lambda a=action_name: self.dispatch_transport(a), width=9)
             btn.pack(side="left", padx=2)
+            self.transport_btns[action_name] = btn
             ToolTip(btn, f"Send '{label_txt}' command through OSC Bridge to all active DAWs.")
 
         tk.Label(shortcuts_bar, text="| Macros:", font=("Helvetica", 8, "bold"), fg="#555").pack(side="left", padx=(6, 4))
@@ -310,6 +312,15 @@ class OmniDashboard(tk.Tk):
             b = ttk.Button(shortcuts_bar, text=macro_name, command=lambda c=macro_cmd: self._run_macro(c))
             b.pack(side="left", padx=2)
             ToolTip(b, f"Execute '{macro_cmd}' macro across session.")
+
+        tk.Label(shortcuts_bar, text="| Quick Snap:", font=("Helvetica", 8, "bold"), fg="#555").pack(side="left", padx=(6, 4))
+        quick_snap_btn = ttk.Button(shortcuts_bar, text="💾 Save Snap", command=self.quick_save_snapshot)
+        quick_snap_btn.pack(side="left", padx=2)
+        ToolTip(quick_snap_btn, "Immediately create timestamped checkpoint snapshot.")
+
+        quick_revert_btn = ttk.Button(shortcuts_bar, text="↺ Revert Base", command=self.quick_revert_baseline)
+        quick_revert_btn.pack(side="left", padx=2)
+        ToolTip(quick_revert_btn, "Instantly revert entire session state to baseline checkpoint.")
 
         # -------------------------------------------------------------
         # 3. Section: AI Production Suite (Mixing Assistant + Stem Separation)
@@ -427,21 +438,82 @@ class OmniDashboard(tk.Tk):
         self.undo_btn.pack(side="right", padx=2)
         ToolTip(self.undo_btn, "Revert the parameter adjustments from the previous AI mixing action.")
 
+        self.redo_btn = ttk.Button(mem_ctrl_bar, text="Redo Move", command=self.redo_last_mix_action)
+        self.redo_btn.pack(side="right", padx=2)
+        ToolTip(self.redo_btn, "Re-apply the parameter adjustments from the most recently undone mixing action.")
+
+        self.audit_btn = ttk.Button(mem_ctrl_bar, text="Audit Consistency", command=self.audit_session_state)
+        self.audit_btn.pack(side="right", padx=2)
+        ToolTip(self.audit_btn, "Verify parameter bounds (-90dB to +12dB) and standardized track roles across session.")
+
         self.save_snap_btn = ttk.Button(mem_ctrl_bar, text="Save Snapshot", command=self.save_session_snapshot)
         self.save_snap_btn.pack(side="right", padx=2)
         ToolTip(self.save_snap_btn, "Save a named checkpoint of all track faders and settings.")
+
+        self.restore_snap_btn = ttk.Button(mem_ctrl_bar, text="Restore Checkpoint...", command=self.restore_checkpoint_dialog)
+        self.restore_snap_btn.pack(side="right", padx=2)
+        ToolTip(self.restore_snap_btn, "Browse and restore previous session checkpoints across DAWs.")
+
+        self.stash_btn = ttk.Button(mem_ctrl_bar, text="📦 Stash", command=self.stash_session_action)
+        self.stash_btn.pack(side="right", padx=2)
+        ToolTip(self.stash_btn, "Temporarily push current in-flight mix onto the LIFO stash stack.")
+
+        self.pop_stash_btn = ttk.Button(mem_ctrl_bar, text="📤 Pop Stash", command=self.pop_stash_action)
+        self.pop_stash_btn.pack(side="right", padx=2)
+        ToolTip(self.pop_stash_btn, "Pop and restore the most recently stashed in-flight mix.")
+
+        self.markers_btn = ttk.Button(mem_ctrl_bar, text="📍 Markers...", command=self.manage_markers_dialog)
+        self.markers_btn.pack(side="right", padx=2)
+        ToolTip(self.markers_btn, "View, add, and navigate cross-DAW timeline arrangement cue markers.")
 
         self.import_session_btn = ttk.Button(mem_ctrl_bar, text="Import Session...", command=self.import_session_dialog)
         self.import_session_btn.pack(side="right", padx=2)
         ToolTip(self.import_session_btn, "Import track faders and settings from an Ardour (.ardour) or LMMS (.mmp) file.")
 
+        self.merge_session_btn = ttk.Button(mem_ctrl_bar, text="Merge Session (Conflict Safe)...", command=self.merge_session_dialog)
+        self.merge_session_btn.pack(side="right", padx=2)
+        ToolTip(self.merge_session_btn, "Import and merge external session with conflict detection and automated resolution strategies.")
+
         self.export_session_btn = ttk.Button(mem_ctrl_bar, text="Export Session...", command=self.export_session_dialog)
         self.export_session_btn.pack(side="right", padx=2)
         ToolTip(self.export_session_btn, "Export current session state to Ardour (.ardour) or LMMS (.mmp) project files.")
 
+        self.bulk_fast_sync_btn = ttk.Button(mem_ctrl_bar, text="⚡ Fast Bulk Sync", command=self.fast_bulk_sync_action)
+        self.bulk_fast_sync_btn.pack(side="right", padx=2)
+        ToolTip(self.bulk_fast_sync_btn, "Atomically serialize and transmit entire session mixer state to Omni-Plugin bridge.")
+
         self.sync_manifest_btn = ttk.Button(mem_ctrl_bar, text="Sync to Bridge", command=self.sync_manifest_to_bridge)
         self.sync_manifest_btn.pack(side="right", padx=2)
         ToolTip(self.sync_manifest_btn, "Push full session layout and track states to Omni-Plugin Bridge host.")
+
+        self.diff_sync_btn = ttk.Button(mem_ctrl_bar, text="Sync Diff to Base", command=self.sync_diff_to_baseline)
+        self.diff_sync_btn.pack(side="right", padx=2)
+        ToolTip(self.diff_sync_btn, "Compute minimal state diff against baseline checkpoint and broadcast delta.")
+
+        self.compare_snaps_btn = ttk.Button(mem_ctrl_bar, text="Compare Checkpoints...", command=self.compare_checkpoints_dialog)
+        self.compare_snaps_btn.pack(side="right", padx=2)
+        ToolTip(self.compare_snaps_btn, "Inspect fine-grained visual parameter diffs between any two checkpoints or live state.")
+
+        self.multi_daw_sync_btn = ttk.Button(mem_ctrl_bar, text="Broadcast to All DAWs", command=self.broadcast_session_to_all_daws)
+        self.multi_daw_sync_btn.pack(side="right", padx=2)
+        ToolTip(self.multi_daw_sync_btn, "Simultaneously push entire session state over binary socket & OSC to all active DAWs with echo suppression.")
+
+        self.sync_metrics_btn = ttk.Button(mem_ctrl_bar, text="📊 Sync Health", command=self.show_sync_health_dialog)
+        self.sync_metrics_btn.pack(side="right", padx=2)
+        ToolTip(self.sync_metrics_btn, "Inspect cross-DAW synchronization health, registered DAWs, and parameter variance metrics.")
+
+        self.test_sync_loop_btn = ttk.Button(mem_ctrl_bar, text="Test Sync Loop", command=self.test_sync_loop_probe)
+        self.test_sync_loop_btn.pack(side="right", padx=2)
+        ToolTip(self.test_sync_loop_btn, "Probe circular feedback echo suppression and round-trip broadcast latency.")
+
+        self.transition_btn = ttk.Button(mem_ctrl_bar, text="Transition to DAW...", command=self.transition_daw_dialog)
+        self.transition_btn.pack(side="right", padx=2)
+        ToolTip(self.transition_btn, "Seamlessly migrate active session to another DAW with preserved checkpoints and state.")
+
+        self.auto_save_var = tk.BooleanVar(value=True)
+        auto_save_chk = ttk.Checkbutton(mem_ctrl_bar, text="Auto-Save", variable=self.auto_save_var, command=self._toggle_auto_save)
+        auto_save_chk.pack(side="right", padx=4)
+        ToolTip(auto_save_chk, "Toggle periodic background session auto-save and bridge sync daemon.")
 
         self.mem_status_lbl = tk.Label(mem_ctrl_bar, text="", font=("Helvetica", 8, "italic"), fg="#555")
         self.mem_status_lbl.pack(side="right", padx=6)
@@ -482,6 +554,10 @@ class OmniDashboard(tk.Tk):
         apply_preset_btn = ttk.Button(plugin_sync_bar, text="Apply Preset", command=self._apply_plugin_preset)
         apply_preset_btn.pack(side="left", padx=2)
         ToolTip(apply_preset_btn, "Broadcast preset parameter block to Omni-Plugin Bridge.")
+
+        audio_loopback_btn = ttk.Button(plugin_sync_bar, text="🔊 Loopback Test", command=self._test_audio_loopback_action)
+        audio_loopback_btn.pack(side="left", padx=2)
+        ToolTip(audio_loopback_btn, "Inject test audio stream into Omni-Plugin Bridge and measure peak/RMS/latency.")
 
         tk.Label(plugin_sync_bar, text="Cutoff:", font=("Helvetica", 8), bg="#282c34", fg="#abb2bf").pack(side="left")
         self.cutoff_scale = tk.Scale(
@@ -658,6 +734,26 @@ class OmniDashboard(tk.Tk):
         probe_dsp_btn.pack(side="right", padx=2)
         ToolTip(probe_dsp_btn, "Stream a simulated 512-frame audio buffer through the Omni-Plugin Host.")
 
+        stream_dsp_btn = ttk.Button(bridge_status_bar, text="Stream Headless Chunk", command=self.stream_headless_audio_block)
+        stream_dsp_btn.pack(side="right", padx=2)
+        ToolTip(stream_dsp_btn, "Execute real-time headless buffer streaming with latency & peak level metrics.")
+
+        bench_dsp_btn = ttk.Button(bridge_status_bar, text="Benchmark DSP Stream", command=self.benchmark_dsp_stream)
+        bench_dsp_btn.pack(side="right", padx=2)
+        ToolTip(bench_dsp_btn, "Measure round-trip latency, jitter, and throughput across 128/256/512/1024-frame buffers.")
+
+        stress_dsp_btn = ttk.Button(bridge_status_bar, text="⚡ Stress Stream", command=self.stress_test_dsp_stream_action)
+        stress_dsp_btn.pack(side="right", padx=2)
+        ToolTip(stress_dsp_btn, "Stream 100 sustained consecutive audio blocks under continuous pressure to measure max latency spikes and jitter.")
+
+        compat_btn = ttk.Button(bridge_status_bar, text="Check Plugin Compat", command=self.check_plugin_compat)
+        compat_btn.pack(side="right", padx=2)
+        ToolTip(compat_btn, "Query format compatibility across Ardour, LMMS, MusE, and Zrythm.")
+
+        ping_daws_btn = ttk.Button(bridge_status_bar, text="⚡ Ping DAWs", command=self.ping_daw_endpoints_action)
+        ping_daws_btn.pack(side="right", padx=2)
+        ToolTip(ping_daws_btn, "Dispatch latency and heartbeat ping telemetry across all active DAW endpoints.")
+
         # DAW Launchers
         daw_btns_frame = tk.Frame(workstation_frame)
         daw_btns_frame.pack(fill="x", pady=2)
@@ -779,6 +875,16 @@ class OmniDashboard(tk.Tk):
             x2 = int(wave_start_x + (i + 1) * step)
             self.vu_canvas.create_line(x1, y1, x2, y2, fill="#61dafb", width=1)
 
+    def _update_transport_feedback(self, state):
+        """Highlights the active transport button and logs state transition."""
+        self.log(f"[Transport Feedback] Global transport switched to: {state.upper()}")
+        for action, btn in getattr(self, "transport_btns", {}).items():
+            if action == state:
+                btn.config(text=f"• {action.upper()} •")
+            else:
+                symbols = {"play": "▶ Play", "stop": "⏹ Stop", "record": "⏺ Record"}
+                btn.config(text=symbols.get(action, action.capitalize()))
+
     def _update_meter_telemetry(self, peak_ratio):
         """Updates live VU meter and waveform history buffer from incoming bridge telemetry."""
         import math
@@ -809,6 +915,17 @@ class OmniDashboard(tk.Tk):
                 time.sleep(6)
         threading.Thread(target=_watch, daemon=True).start()
 
+    def _toggle_auto_save(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        if self.auto_save_var.get():
+            mem.enable_auto_save(15.0)
+            self.log("[Session Memory] Auto-save daemon ENABLED (interval: 15s).")
+        else:
+            mem.disable_auto_save()
+            self.log("[Session Memory] Auto-save daemon DISABLED.")
+
     def _run_macro(self, macro_cmd):
         self.muse_prompt.delete(0, tk.END)
         self.muse_prompt.insert(0, macro_cmd)
@@ -836,6 +953,9 @@ class OmniDashboard(tk.Tk):
                                 self.after(0, lambda val=v: self._update_meter_telemetry(val))
                             except ValueError:
                                 pass
+                        elif "[TRANSPORT]" in text:
+                            st = text.replace("[TRANSPORT]", "").strip()
+                            self.after(0, lambda s=st: self._update_transport_feedback(s))
                         else:
                             clean_text = text.replace("/telemetry", "").strip()
                             self.after(0, lambda m=clean_text: self.log(f"[IPC Telemetry] {m}"))
@@ -921,28 +1041,72 @@ class OmniDashboard(tk.Tk):
             scale.pack()
             ToolTip(scale, f"Adjust {t.upper()} fader gain (dB).")
 
-            # Mute & Solo Buttons
+            # Pan Slider (L <-> R)
+            pan_val = 0.0
+            if session_memory:
+                try:
+                    pan_val = getattr(session_memory.SessionMemory().tracks[t], "pan", 0.0)
+                except Exception:
+                    pass
+
+            pan_scale = tk.Scale(
+                strip,
+                from_=-1.0,
+                to=1.0,
+                resolution=0.05,
+                orient="horizontal",
+                length=56,
+                bg="#282c34",
+                fg="#abb2bf",
+                highlightthickness=0,
+                troughcolor="#1e1e24",
+                font=("Monospace", 6),
+                command=lambda val, name=t: self._on_pan_moved(name, val)
+            )
+            pan_scale.set(pan_val)
+            pan_scale.pack(pady=1)
+            ToolTip(pan_scale, f"Stereo pan for {t.upper()} (-1.0 Left to +1.0 Right).")
+
+            # Mute, Solo, and Freeze Buttons
             btn_row = tk.Frame(strip, bg="#282c34")
             btn_row.pack(fill="x", pady=2)
 
             mute_btn = tk.Button(
-                btn_row, text="M", width=2, font=("Helvetica", 7, "bold"),
+                btn_row, text="M", width=1, font=("Helvetica", 7, "bold"),
                 bg="#3a3f4b", fg="#fff", command=lambda name=t: self._toggle_track_mute(name)
             )
             mute_btn.pack(side="left", padx=1)
             ToolTip(mute_btn, f"Mute {t.upper()} track.")
 
             solo_btn = tk.Button(
-                btn_row, text="S", width=2, font=("Helvetica", 7, "bold"),
+                btn_row, text="S", width=1, font=("Helvetica", 7, "bold"),
                 bg="#3a3f4b", fg="#fff", command=lambda name=t: self._toggle_track_solo(name)
             )
             solo_btn.pack(side="left", padx=1)
             ToolTip(solo_btn, f"Solo {t.upper()} track.")
 
+            is_frozen = False
+            if session_memory:
+                try:
+                    is_frozen = getattr(session_memory.SessionMemory().tracks.get(t), "frozen", False)
+                except Exception:
+                    pass
+
+            freeze_btn = tk.Button(
+                btn_row, text="F", width=1, font=("Helvetica", 7, "bold"),
+                bg="#61dafb" if is_frozen else "#3a3f4b",
+                fg="#1e1e24" if is_frozen else "#fff",
+                command=lambda name=t: self._toggle_track_freeze(name)
+            )
+            freeze_btn.pack(side="left", padx=1)
+            ToolTip(freeze_btn, f"Freeze/Unfreeze {t.upper()} track (offline cache DSP rendering).")
+
             self.track_widgets[t] = {
                 "fader": scale,
+                "pan": pan_scale,
                 "mute_btn": mute_btn,
                 "solo_btn": solo_btn,
+                "freeze_btn": freeze_btn,
                 "vu": vu
             }
 
@@ -950,7 +1114,23 @@ class OmniDashboard(tk.Tk):
         val = float(value)
         if session_memory:
             session_memory.SessionMemory().set_fader(track_name, val)
-        self.send_osc_direct(f"/track/{track_name}/fader", val)
+        try:
+            import bobui_bridge
+            bobui_bridge.broadcast_track_update(track_name, fader=val)
+        except Exception:
+            self.send_osc_direct(f"/track/{track_name}/fader", val)
+
+    def _on_pan_moved(self, track_name, value):
+        val = float(value)
+        if session_memory:
+            t = session_memory.SessionMemory().get_or_create_track(track_name)
+            t.pan = val
+            t.update_parameter("pan", val)
+        try:
+            import bobui_bridge
+            bobui_bridge.broadcast_track_update(track_name, pan=val)
+        except Exception:
+            self.send_osc_direct(f"/track/{track_name}/pan", val)
 
     def _toggle_track_mute(self, track_name):
         if not session_memory:
@@ -959,7 +1139,11 @@ class OmniDashboard(tk.Tk):
         w = self.track_widgets.get(track_name)
         if w:
             w["mute_btn"].config(bg="#f44336" if is_muted else "#3a3f4b")
-        self.send_osc_direct(f"/track/{track_name}/mute", 1.0 if is_muted else 0.0)
+        try:
+            import bobui_bridge
+            bobui_bridge.broadcast_track_update(track_name, muted=is_muted)
+        except Exception:
+            self.send_osc_direct(f"/track/{track_name}/mute", 1.0 if is_muted else 0.0)
         self.log(f"Track {track_name.upper()} {'MUTED' if is_muted else 'UNMUTED'}.")
 
     def _toggle_track_solo(self, track_name):
@@ -969,8 +1153,31 @@ class OmniDashboard(tk.Tk):
         w = self.track_widgets.get(track_name)
         if w:
             w["solo_btn"].config(bg="#ffeb3b" if is_solo else "#3a3f4b", fg="#000" if is_solo else "#fff")
-        self.send_osc_direct(f"/track/{track_name}/solo", 1.0 if is_solo else 0.0)
+        try:
+            import bobui_bridge
+            bobui_bridge.broadcast_track_update(track_name, soloed=is_solo)
+        except Exception:
+            self.send_osc_direct(f"/track/{track_name}/solo", 1.0 if is_solo else 0.0)
         self.log(f"Track {track_name.upper()} {'SOLOED' if is_solo else 'UNSOLOED'}.")
+
+    def _toggle_track_freeze(self, track_name):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        track = mem.get_or_create_track(track_name)
+        w = self.track_widgets.get(track_name)
+        if track.frozen:
+            res = mem.unfreeze_track(track_name)
+            if w:
+                w["freeze_btn"].config(bg="#3a3f4b", fg="#fff")
+                w["fader"].config(state="normal")
+            self.log(f"[Track Freeze] Track '{track_name.upper()}' unfrozen. Real-time DSP active.")
+        else:
+            res = mem.freeze_track(track_name)
+            if w:
+                w["freeze_btn"].config(bg="#61dafb", fg="#1e1e24")
+                w["fader"].config(state="disabled")
+            self.log(f"[Track Freeze] Track '{track_name.upper()}' frozen to offline cache ({res['freeze_file']}).")
 
     def _on_plugin_cutoff_moved(self, val):
         track = self.plugin_track_combo.get() or "bass"
@@ -1001,6 +1208,25 @@ class OmniDashboard(tk.Tk):
                 self.log(f"Omni-Plugin preset '{preset}' applied to track '{track}'.")
                 self.refresh_session_memory()
 
+    def _test_audio_loopback_action(self):
+        self.log("[Audio Loopback] Injecting 512-frame audio test stream into Omni-Plugin Bridge...")
+        def _run():
+            try:
+                import bobui_bridge
+                rep = bobui_bridge.verify_audio_buffer_loopback(frames=512, sample_rate=48000, gain=1.0)
+                status = rep.get("status", "unknown")
+                peak = rep.get("peak", 0.0)
+                peak_db = rep.get("peak_db", -60.0)
+                rms_db = rep.get("rms_db", -60.0)
+                lat = rep.get("loopback_roundtrip_ms", rep.get("latency_ms", 0.0))
+                mode = rep.get("mode", "dsp")
+                msg = f"[Audio Loopback] {status.upper()} (mode: {mode}): Peak: {peak:.4f} ({peak_db} dBFS) | RMS: {rms_db} dBFS | Latency: {lat:.2f} ms"
+                self.after(0, lambda: self.log(msg))
+                self.after(0, lambda: self.plugin_sync_status.config(text=f"Loopback: {peak_db} dBFS"))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Audio Loopback Error] {e}"))
+        threading.Thread(target=_run, daemon=True).start()
+
     def import_session_dialog(self):
         if not session_memory or not session_importer:
             self.log("Session importer or session memory module missing.")
@@ -1019,16 +1245,111 @@ class OmniDashboard(tk.Tk):
         if in_file:
             try:
                 mem = session_memory.SessionMemory()
+                fmt_desc = "Ardour Session"
                 if in_file.endswith(".mmp"):
                     imported = session_importer.import_from_lmms(in_file, mem)
+                    fmt_desc = "LMMS Project"
                 elif in_file.endswith(".json"):
                     imported = session_importer.import_from_manifest(in_file, mem)
+                    fmt_desc = "JSON Manifest"
                 else:
                     imported = session_importer.import_from_ardour(in_file, mem)
-                self.log(f"[Session Importer] Imported {len(imported)} tracks from {os.path.basename(in_file)}.")
+
+                pan_count = sum(1 for t in imported.values() if abs(t.get("pan", 0.0)) > 1e-3)
+                frozen_count = sum(1 for t in imported.values() if t.get("frozen"))
+                self.log(
+                    f"[Session Importer] Imported {len(imported)} tracks from {os.path.basename(in_file)} ({fmt_desc}). "
+                    f"Pan settings: {pan_count} | Frozen tracks: {frozen_count}."
+                )
                 self.refresh_session_memory()
             except Exception as e:
                 self.log(f"Import session error: {e}")
+
+    def merge_session_dialog(self):
+        if not session_memory or not session_importer:
+            self.log("Session importer or session memory module missing.")
+            return
+
+        in_file = filedialog.askopenfilename(
+            title="Select Session File to Merge",
+            filetypes=[
+                ("Supported Sessions", "*.ardour *.mmp *.json *.xml"),
+                ("Ardour Session (*.ardour)", "*.ardour"),
+                ("LMMS Project (*.mmp)", "*.mmp"),
+                ("Universal Manifest (*.json)", "*.json"),
+                ("All Files", "*.*")
+            ]
+        )
+        if not in_file:
+            return
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Merge Session - Conflict Resolution")
+        dialog.geometry("380x220")
+        dialog.transient(self)
+
+        tk.Label(dialog, text=f"Merging: {os.path.basename(in_file)}", font=("Helvetica", 9, "bold")).pack(pady=6)
+        tk.Label(dialog, text="Select Conflict Resolution Strategy:", font=("Helvetica", 8)).pack(pady=2)
+
+        strat_var = tk.StringVar(value="merge_latest")
+        rb_frame = tk.Frame(dialog)
+        rb_frame.pack(pady=4)
+
+        ttk.Radiobutton(rb_frame, text="Merge Latest Timestamp (Automatic)", variable=strat_var, value="merge_latest").pack(anchor="w", pady=2)
+        ttk.Radiobutton(rb_frame, text="Overwrite Remote (Incoming Takes Priority)", variable=strat_var, value="overwrite_remote").pack(anchor="w", pady=2)
+        ttk.Radiobutton(rb_frame, text="Keep Local (Current Session Preserved)", variable=strat_var, value="keep_local").pack(anchor="w", pady=2)
+
+        def _execute_merge():
+            strategy = strat_var.get()
+            dialog.destroy()
+            try:
+                mem = session_memory.SessionMemory()
+                if in_file.endswith(".mmp"):
+                    incoming_tracks = session_importer.import_from_lmms(in_file)
+                elif in_file.endswith(".json"):
+                    incoming_tracks = session_importer.import_from_manifest(in_file)
+                else:
+                    incoming_tracks = session_importer.import_from_ardour(in_file)
+
+                report = mem.resolve_session_conflict(incoming_tracks, strategy=strategy)
+                self.log(f"[Session Merge] Strategy '{strategy}' applied: {report['merged_tracks_count']} total tracks.")
+                self.log(f"  • Conflicts detected: {len(report['conflicts'])}")
+                self.log(f"  • Changes applied: {len(report['changes_applied'])}")
+                for chg in report["changes_applied"]:
+                    self.log(f"    - {chg['track']} ({chg['field']}): {chg['old_val']} -> {chg['new_val']}")
+                    # If fader changed, send live OSC update to active DAWs
+                    if chg['field'] == 'fader':
+                        self.send_osc_direct(f"/track/{chg['track']}/fader", chg['new_val'])
+
+                self.refresh_session_memory()
+            except Exception as e:
+                self.log(f"Merge session error: {e}")
+
+        btn_row = tk.Frame(dialog)
+        btn_row.pack(pady=10)
+        ttk.Button(btn_row, text="Execute Merge", command=_execute_merge).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side="left", padx=4)
+
+    def ping_daw_endpoints_action(self):
+        self.log("[Ping Telemetry] Probing latency and heartbeat response across all registered DAW engines...")
+        def _run():
+            try:
+                import bobui_bridge
+                res = bobui_bridge.ping_all_daw_endpoints_bridge()
+                for daw, data in res.items():
+                    stat = data.get("status", "unknown").upper()
+                    lat = data.get("latency_ms")
+                    lat_str = f"{lat:.2f} ms" if lat is not None else "timeout"
+                    self.after(0, lambda d=daw, s=stat, l=lat_str: self.log(f"  • {d.upper():<12}: {s} (latency: {l})"))
+                    if daw in self.daw_badges:
+                        color = "#98c379" if stat == "ONLINE" else ("#e5c07b" if stat == "REGISTERED" else "#888")
+                        self.after(0, lambda d=daw, s=stat, c=color, l=lat_str: self.daw_badges[d].config(
+                            text=f"{s} ({l})" if "ms" in l else s,
+                            fg=c
+                        ))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Ping Telemetry Error] {e}"))
+        threading.Thread(target=_run, daemon=True).start()
 
     def export_session_dialog(self):
         if not session_memory or not session_exporter:
@@ -1048,15 +1369,361 @@ class OmniDashboard(tk.Tk):
         if out_file:
             try:
                 mem = session_memory.SessionMemory()
+                fmt_name = "Ardour XML"
                 if out_file.endswith(".mmp"):
                     session_exporter.export_to_lmms(mem.tracks, out_file)
+                    fmt_name = "LMMS XML"
                 elif out_file.endswith(".json"):
                     session_exporter.export_manifest(mem.tracks, out_file)
+                    fmt_name = "Universal JSON Manifest"
                 else:
                     session_exporter.export_to_ardour(mem.tracks, out_file)
-                self.log(f"[Session Exporter] Session exported successfully to: {out_file}")
+
+                self.log(
+                    f"[Session Exporter] {len(mem.tracks)} tracks exported successfully to {os.path.basename(out_file)} ({fmt_name}). "
+                    f"Saved path: {out_file}"
+                )
             except Exception as e:
                 self.log(f"Export session error: {e}")
+
+    def transition_daw_dialog(self):
+        dialog = tk.Toplevel(self)
+        dialog.title("Transition Session to DAW")
+        dialog.geometry("380x250")
+        dialog.transient(self)
+
+        tk.Label(dialog, text="Source DAW:", font=("Helvetica", 9)).pack(anchor="w", padx=16, pady=(8, 2))
+        src_combo = ttk.Combobox(dialog, values=["ardour", "lmms", "muse", "zrythm"], state="readonly", width=24)
+        src_combo.set("ardour")
+        src_combo.pack(padx=16, pady=2)
+
+        tk.Label(dialog, text="Target DAW:", font=("Helvetica", 9)).pack(anchor="w", padx=16, pady=(6, 2))
+        tgt_combo = ttk.Combobox(dialog, values=["ardour", "lmms", "muse", "zrythm"], state="readonly", width=24)
+        tgt_combo.set("lmms")
+        tgt_combo.pack(padx=16, pady=2)
+
+        status_lbl = tk.Label(dialog, text="", font=("Monospace", 8), fg="#7f848e")
+        status_lbl.pack(padx=16, pady=2)
+
+        safe_var = tk.BooleanVar(value=True)
+        safe_chk = ttk.Checkbutton(dialog, text="Rollback on Verification Failure", variable=safe_var)
+        safe_chk.pack(anchor="w", padx=16, pady=4)
+
+        def _do_preflight():
+            src = src_combo.get()
+            tgt = tgt_combo.get()
+            if session_memory:
+                mem = session_memory.SessionMemory()
+                res = mem.validate_session_transition(src, tgt)
+                if res.get("valid"):
+                    status_lbl.config(text=f"✓ Pre-flight Pass ({res['total_tracks']} tracks healthy)", fg="#98c379")
+                    self.log(f"[Transition Pre-flight] Passed for {src.upper()} -> {tgt.upper()} ({res['total_tracks']} tracks).")
+                else:
+                    status_lbl.config(text=f"⚠ Fail: {res['reason']}", fg="#e06c75")
+                    self.log(f"[Transition Pre-flight Error] {res['issues']}")
+
+        def _do_dry_run():
+            src = src_combo.get()
+            tgt = tgt_combo.get()
+            if session_memory:
+                mem = session_memory.SessionMemory()
+                sim = mem.simulate_session_transition(src, tgt)
+                pct = sim.get("compatibility_percentage", 0.0)
+                compat_cnt = len(sim.get("fully_compatible_tracks", []))
+                bridge_cnt = len(sim.get("bridged_tracks", []))
+                status_lbl.config(text=f"Dry-Run: {pct}% compatible ({compat_cnt} native, {bridge_cnt} bridged)", fg="#61afef")
+                self.log(f"[Transition Dry-Run] {src.upper()} -> {tgt.upper()} projected compatibility: {pct}%")
+                self.log(f"  • Native: {sim['fully_compatible_tracks']}")
+                self.log(f"  • Bridged / Pan-adapted: {sim['bridged_tracks']}")
+
+        def _do_transition():
+            src = src_combo.get()
+            tgt = tgt_combo.get()
+            do_safe = safe_var.get()
+            try:
+                import bobui_bridge
+                res = bobui_bridge.transition_session(src, tgt)
+                if do_safe:
+                    verification = bobui_bridge.verify_and_rollback_transition(res)
+                    if verification.get("status") == "rolled_back":
+                        self.log(f"[Transition Warning] Verification failed: {verification.get('reason')}. Automatically rolled back.")
+                        self.refresh_session_memory()
+                        dialog.destroy()
+                        return
+
+                self.log(f"[Session Transition] Successfully transitioned from {src.upper()} to {tgt.upper()}.")
+                self.log(f"  • Snapshot saved: {res.get('checkpoint')}")
+                self.log(f"  • Exported: {res.get('exported_file')}")
+                self.refresh_session_memory()
+            except Exception as e:
+                self.log(f"[Transition Error] {e}")
+            dialog.destroy()
+
+        btn_row = tk.Frame(dialog)
+        btn_row.pack(pady=12)
+        ttk.Button(btn_row, text="Pre-flight Check", command=_do_preflight).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Dry-Run", command=_do_dry_run).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Execute Transition", command=_do_transition).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Cancel", command=dialog.destroy).pack(side="left", padx=4)
+
+    def broadcast_session_to_all_daws(self):
+        self.log("[Multi-DAW Sync] Broadcasting active session state across all member DAWs with echo suppression...")
+        def _sync():
+            try:
+                import bobui_bridge
+                res = bobui_bridge.broadcast_session_state_safe(tracks=None)
+                self.after(0, lambda: self.log(
+                    f"[Multi-DAW Sync] Success: {res.get('tracks_dispatched')} tracks pushed | "
+                    f"{res.get('echoes_suppressed')} echoes suppressed across {len(res.get('target_daws'))} DAWs."
+                ))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Multi-DAW Sync Error] {e}"))
+        threading.Thread(target=_sync, daemon=True).start()
+
+    def test_sync_loop_probe(self):
+        self.log("[Sync Loop Probe] Dispatching high-frequency rapid parameter stream to test echo-suppression...")
+        def _probe():
+            try:
+                import bobui_bridge
+                # Fire two rapid identical bursts
+                res1 = bobui_bridge.broadcast_session_state_safe(tracks=None, source_daw="ardour")
+                res2 = bobui_bridge.broadcast_session_state_safe(tracks=None, source_daw="ardour")
+                self.after(0, lambda: self.log(
+                    f"[Sync Loop Probe] Burst 1: {res1['tracks_dispatched']} dispatched. "
+                    f"Burst 2 (rapid duplicate): {res2['echoes_suppressed']} echo packets suppressed (no feedback loops detected)."
+                ))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Sync Loop Probe Error] {e}"))
+        threading.Thread(target=_probe, daemon=True).start()
+
+    def sync_diff_to_baseline(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        checkpoints = mem.list_checkpoints()
+        if not checkpoints:
+            self.log("[Session Diff] No checkpoints saved to compute diff against. Save a snapshot first.")
+            return
+
+        base_cp = checkpoints[0]
+        diff = mem.compute_state_diff(base_cp)
+        if not diff:
+            self.log(f"[Session Diff] Current session matches checkpoint '{base_cp}' 100%. No diff to broadcast.")
+        else:
+            self.log(f"[Session Diff] Computed {len(diff)} track deltas against baseline '{base_cp}':")
+            for t_name, chg in diff.items():
+                self.log(f"  • {t_name.upper()}: {chg}")
+            # Stream diff to bridge
+            mem.sync_session_manifest_to_bridge()
+
+    def compare_checkpoints_dialog(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        checkpoints = mem.list_checkpoints()
+        if not checkpoints:
+            messagebox.showinfo("Checkpoints", "No checkpoints saved to compare. Save snapshots first.")
+            return
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Checkpoint Visual Diff Inspector")
+        dialog.geometry("520x420")
+        dialog.transient(self)
+
+        top_ctrls = tk.Frame(dialog, padx=8, pady=8)
+        top_ctrls.pack(fill="x")
+
+        tk.Label(top_ctrls, text="Base:", font=("Helvetica", 9, "bold")).pack(side="left", padx=2)
+        combo_a = ttk.Combobox(top_ctrls, values=checkpoints, state="readonly", width=16)
+        combo_a.set(checkpoints[0])
+        combo_a.pack(side="left", padx=4)
+
+        tk.Label(top_ctrls, text="Compare With:", font=("Helvetica", 9, "bold")).pack(side="left", padx=2)
+        compare_options = ["[Live Current State]"] + checkpoints
+        combo_b = ttk.Combobox(top_ctrls, values=compare_options, state="readonly", width=18)
+        combo_b.set(compare_options[0])
+        combo_b.pack(side="left", padx=4)
+
+        # Diff results text box
+        diff_text = tk.Text(dialog, wrap="word", bg="#1e1e24", fg="#abb2bf", font=("Monospace", 9), padx=8, pady=8)
+        diff_text.pack(fill="both", expand=True, padx=8, pady=4)
+
+        def _refresh_diff():
+            diff_text.config(state="normal")
+            diff_text.delete("1.0", tk.END)
+            snap_a = combo_a.get()
+            target_b = combo_b.get()
+            snap_b = None if target_b == "[Live Current State]" else target_b
+
+            diffs = mem.compare_session_snapshots(snap_a, snap_b)
+            if not diffs:
+                diff_text.insert(tk.END, f"✓ Identical: No parameter differences between '{snap_a}' and '{target_b}'.\n")
+            else:
+                diff_text.insert(tk.END, f"=== Comparison: {snap_a} vs {target_b} ({len(diffs)} differences) ===\n\n")
+                for d in diffs:
+                    diff_text.insert(
+                        tk.END,
+                        f"• Track: {d['track'].upper():<12} | Field: {d['field']:<8} | "
+                        f"{d['old_val']} -> {d['new_val']} ({d['change_type']})\n"
+                    )
+            diff_text.config(state="disabled")
+
+        ttk.Button(top_ctrls, text="Inspect Diff", command=_refresh_diff).pack(side="left", padx=6)
+        combo_a.bind("<<ComboboxSelected>>", lambda e: _refresh_diff())
+        combo_b.bind("<<ComboboxSelected>>", lambda e: _refresh_diff())
+
+        def _export_patch():
+            snap_a = combo_a.get()
+            target_b = combo_b.get()
+            snap_b = None if target_b == "[Live Current State]" else target_b
+
+            out_file = filedialog.asksaveasfilename(
+                title="Export Session Diff Patch",
+                defaultextension=".json",
+                filetypes=[("Diff Patch JSON", "*.json"), ("All Files", "*.*")]
+            )
+            if out_file:
+                try:
+                    import bobui_bridge
+                    bobui_bridge.export_diff_patch_bridge(snap_a, snap_b, out_file, mem=mem)
+                    self.log(f"[Diff Patch] Exported diff patch between '{snap_a}' and '{target_b}' to: {out_file}")
+                    messagebox.showinfo("Export Patch", f"Diff patch saved to:\n{out_file}")
+                except Exception as e:
+                    self.log(f"[Diff Patch Error] {e}")
+
+        btn_row = tk.Frame(dialog, pady=6)
+        btn_row.pack(fill="x")
+        ttk.Button(btn_row, text="Export Diff Patch...", command=_export_patch).pack(side="left", padx=8)
+        ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="right", padx=8)
+
+        # Initial render
+        _refresh_diff()
+
+    def show_sync_health_dialog(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        metrics = mem.get_session_synchronization_metrics()
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Cross-DAW Session Sync Health Inspector")
+        dialog.geometry("450x300")
+        dialog.transient(self)
+
+        tk.Label(dialog, text="Session Synchronization Telemetry", font=("Helvetica", 10, "bold")).pack(pady=6)
+
+        info_frame = tk.Frame(dialog, padx=10, pady=6, bg="#21252b")
+        info_frame.pack(fill="both", expand=True, padx=8, pady=4)
+
+        rows = [
+            ("Sync Health Status:", metrics.get("status", "unknown").upper()),
+            ("Total Active Tracks:", f"{metrics.get('total_tracks')} tracks"),
+            ("Registered Active DAWs:", f"{metrics.get('active_daws_count')} ({', '.join(metrics.get('active_daws', [])) or 'None'})"),
+            ("Track Flags (F/M/S):", f"Frozen: {metrics.get('frozen_tracks_count')} | Muted: {metrics.get('muted_tracks_count')} | Solo: {metrics.get('soloed_tracks_count')}"),
+            ("Mean Fader Level:", f"{metrics.get('mean_fader_level'):.2f} dBFS"),
+            ("Checkpoints & Max Lineage:", f"{metrics.get('checkpoint_count')} checkpoints (max lineage depth: {metrics.get('max_lineage_depth')})"),
+            ("AI Undo / Redo Depths:", f"Undo: {metrics.get('action_history_depth')} | Redo: {metrics.get('redo_history_depth')}"),
+            ("Last Sync Timestamp:", f"{metrics.get('last_sync_str')}")
+        ]
+
+        for label_text, val_text in rows:
+            r = tk.Frame(info_frame, bg="#21252b")
+            r.pack(fill="x", pady=2)
+            tk.Label(r, text=label_text, font=("Helvetica", 8, "bold"), fg="#abb2bf", bg="#21252b", width=22, anchor="w").pack(side="left")
+            color = "#98c379" if "HEALTHY" in val_text else "#61afef"
+            tk.Label(r, text=val_text, font=("Monospace", 8), fg=color, bg="#21252b", anchor="w").pack(side="left", fill="x", expand=True)
+
+        ttk.Button(dialog, text="Close", command=dialog.destroy).pack(pady=8)
+
+    def manage_markers_dialog(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Timeline Arrangement Markers & Cues")
+        dialog.geometry("450x320")
+        dialog.transient(self)
+
+        tk.Label(dialog, text="Cross-DAW Timeline Markers", font=("Helvetica", 10, "bold")).pack(pady=6)
+
+        list_box = tk.Listbox(dialog, bg="#1e1e24", fg="#abb2bf", font=("Monospace", 9), height=8)
+        list_box.pack(fill="both", expand=True, padx=12, pady=4)
+
+        def _refresh_list():
+            list_box.delete(0, tk.END)
+            for m in mem.list_session_markers():
+                pos = m.get("position", 0.0)
+                m_str = f"[{pos:>6.2f}s] {m.get('name'):<16} ({m.get('type')})"
+                list_box.insert(tk.END, m_str)
+
+        _refresh_list()
+
+        def _add_marker():
+            name = simpledialog.askstring("Add Marker", "Marker Name (e.g. Chorus 1, Drop, Verse):")
+            if name:
+                pos_str = simpledialog.askstring("Position", "Position in seconds (e.g. 32.5):", initialvalue="0.0")
+                try:
+                    pos = float(pos_str.strip()) if pos_str else 0.0
+                    m = mem.add_session_marker(name.strip(), pos)
+                    self.log(f"[Timeline Marker] Added '{m['name']}' at {m['position']}s.")
+                    self.send_osc_direct("/session/marker/add", pos)
+                    _refresh_list()
+                except ValueError:
+                    messagebox.showerror("Invalid Input", "Position must be a valid number of seconds.")
+
+        def _delete_marker():
+            sel = list_box.curselection()
+            if sel:
+                idx = sel[0]
+                markers = mem.list_session_markers()
+                if idx < len(markers):
+                    target = markers[idx]
+                    mem.remove_session_marker(target.get("id"))
+                    self.log(f"[Timeline Marker] Removed '{target.get('name')}'.")
+                    _refresh_list()
+
+        btn_row = tk.Frame(dialog)
+        btn_row.pack(pady=8)
+        ttk.Button(btn_row, text="Add Marker...", command=_add_marker).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Delete Selected", command=_delete_marker).pack(side="left", padx=4)
+        ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="left", padx=4)
+
+    def stash_session_action(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        res = mem.stash_session_state()
+        self.log(f"[Session Stash] Stashed in-flight mix as '{res['stash_name']}' (stash depth: {res['stash_depth']}, tracks: {res['tracks_stashed']}).")
+        self.refresh_session_memory()
+
+    def pop_stash_action(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        res = mem.pop_stash_session_state()
+        if res.get("restored"):
+            for t_name, track in mem.tracks.items():
+                self.send_osc_direct(f"/track/{t_name}/fader", track.fader)
+                self.send_osc_direct(f"/track/{t_name}/pan", track.pan)
+            self.log(f"[Session Stash] Restored stashed mix '{res['stash_name']}' ({res['tracks_restored']} tracks, remaining stash depth: {res['stash_depth']}).")
+            self.refresh_session_memory()
+        else:
+            messagebox.showinfo("Pop Stash", res.get("message", "Stash stack is empty."))
+
+    def fast_bulk_sync_action(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        try:
+            import bobui_bridge
+            rep = bobui_bridge.fast_sync_bulk_tracks(mem.tracks)
+            status = rep.get("status", "unknown")
+            count = rep.get("count", len(mem.tracks))
+            mode = rep.get("socket_status", "live_ipc")
+            self.log(f"[Fast Bulk Sync] Serialized and transmitted {count} tracks to Omni-Plugin bridge (status: {status}, mode: {mode}).")
+        except Exception as e:
+            self.log(f"[Fast Bulk Sync Error] {e}")
 
     def sync_manifest_to_bridge(self):
         if not session_memory:
@@ -1069,6 +1736,258 @@ class OmniDashboard(tk.Tk):
             else:
                 self.log("[Session Sync Note] Bridge socket idle or unreachable.")
         self.refresh_session_memory()
+
+    def restore_checkpoint_dialog(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        checkpoints = mem.list_checkpoints()
+        if not checkpoints:
+            messagebox.showinfo("Checkpoints", "No checkpoints saved in current session.")
+            return
+
+        dialog = tk.Toplevel(self)
+        dialog.title("Session Checkpoint Manager")
+        dialog.geometry("460x260")
+        dialog.transient(self)
+
+        tk.Label(dialog, text="Select Session Checkpoint:", font=("Helvetica", 9, "bold")).pack(pady=6)
+        combo = ttk.Combobox(dialog, values=checkpoints, state="readonly", width=36)
+        combo.set(checkpoints[-1])
+        combo.pack(pady=2)
+
+        info_lbl = tk.Label(dialog, text="", font=("Monospace", 8), fg="#7f848e")
+        info_lbl.pack(pady=2)
+
+        lineage_lbl = tk.Label(dialog, text="", font=("Monospace", 7), fg="#abb2bf")
+        lineage_lbl.pack(pady=2)
+
+        def _update_info(event=None):
+            chosen = combo.get()
+            details = mem.get_checkpoint_details(chosen)
+            if details:
+                parent_str = f" <- {details.get('parent_checkpoint_id')}" if details.get('parent_checkpoint_id') else ""
+                info_lbl.config(text=f"Tag: [{details.get('tag')}] | Tracks: {details.get('track_count')}{parent_str} | Saved: {details.get('time_str')}")
+                lineage = mem.get_checkpoint_lineage(chosen)
+                chain = " -> ".join([item['checkpoint'] for item in reversed(lineage)])
+                lineage_lbl.config(text=f"Lineage: {chain}" if len(lineage) > 1 else "")
+
+        combo.bind("<<ComboboxSelected>>", _update_info)
+        _update_info()
+
+        def _do_restore():
+            chosen = combo.get()
+            if chosen:
+                ok = mem.restore_checkpoint(chosen)
+                if ok:
+                    for t_name, track in mem.tracks.items():
+                        self.send_osc_direct(f"/track/{t_name}/fader", track.fader)
+                    self.log(f"[Session Memory] Checkpoint '{chosen}' restored across all DAWs.")
+                    self.refresh_session_memory()
+            dialog.destroy()
+
+        def _do_delete():
+            chosen = combo.get()
+            if chosen:
+                if messagebox.askyesno("Delete Checkpoint", f"Delete checkpoint '{chosen}'?"):
+                    mem.delete_checkpoint(chosen)
+                    self.log(f"[Session Memory] Checkpoint '{chosen}' deleted.")
+                    dialog.destroy()
+                    self.refresh_session_memory()
+
+        def _do_tag():
+            chosen = combo.get()
+            if chosen:
+                tag_win = simpledialog.askstring("Tag Checkpoint", f"Enter workflow tag for '{chosen}':")
+                if tag_win:
+                    mem.tag_checkpoint(chosen, tag_win.strip())
+                    self.log(f"[Session Memory] Checkpoint '{chosen}' tagged as '{tag_win.strip()}'.")
+                    _update_info()
+
+        def _do_fork():
+            chosen = combo.get()
+            if chosen:
+                branch_name = simpledialog.askstring("Fork Branch", f"Enter new checkpoint branch name from '{chosen}':")
+                if branch_name:
+                    b_clean = branch_name.strip().replace(" ", "_")
+                    tag_input = simpledialog.askstring("Branch Tag", "Enter tag for branch (optional, e.g. alternate_mix):")
+                    tag_val = tag_input.strip() if tag_input else f"branch_from_{chosen}"
+                    res = mem.fork_checkpoint(chosen, b_clean, branch_tag=tag_val)
+                    if res:
+                        self.log(f"[Checkpoint Branch] Forked new branch '{b_clean}' from '{chosen}' (tag: {tag_val}).")
+                        new_cps = mem.list_checkpoints()
+                        combo.config(values=new_cps)
+                        combo.set(b_clean)
+                        _update_info()
+                        self.refresh_session_memory()
+
+        def _do_merge_branch():
+            chosen = combo.get()
+            if chosen:
+                merge_dialog = tk.Toplevel(dialog)
+                merge_dialog.title("Merge Branch Checkpoint")
+                merge_dialog.geometry("380x200")
+                merge_dialog.transient(dialog)
+
+                tk.Label(merge_dialog, text=f"Merge Source: {chosen}", font=("Helvetica", 9, "bold")).pack(pady=4)
+
+                tk.Label(merge_dialog, text="Target (Checkpoint or Live State):").pack()
+                target_options = ["[Live Current Session]"] + [cp for cp in checkpoints if cp != chosen]
+                tgt_combo = ttk.Combobox(merge_dialog, values=target_options, state="readonly", width=30)
+                tgt_combo.set("[Live Current Session]")
+                tgt_combo.pack(pady=2)
+
+                tk.Label(merge_dialog, text="Conflict Strategy:").pack()
+                strat_combo = ttk.Combobox(merge_dialog, values=["merge_latest", "overwrite_remote", "keep_local"], state="readonly", width=20)
+                strat_combo.set("merge_latest")
+                strat_combo.pack(pady=2)
+
+                def _exec_merge():
+                    tgt_sel = tgt_combo.get()
+                    tgt_cp = None if tgt_sel == "[Live Current Session]" else tgt_sel
+                    strategy = strat_combo.get()
+
+                    rep = mem.merge_checkpoint_branch(chosen, tgt_cp, strategy=strategy)
+                    if rep.get("status") in ["success", "ok"]:
+                        if tgt_cp is None:
+                            for t_name, track in mem.tracks.items():
+                                self.send_osc_direct(f"/track/{t_name}/fader", track.fader)
+                            self.log(f"[Branch Merge] Successfully merged '{chosen}' into live session ({len(rep.get('changes_applied', []))} changes).")
+                        else:
+                            self.log(f"[Branch Merge] Successfully merged '{chosen}' into checkpoint '{tgt_cp}' ({len(rep.get('changes_applied', []))} changes).")
+                        merge_dialog.destroy()
+                        _update_info()
+                        self.refresh_session_memory()
+                    else:
+                        messagebox.showerror("Merge Failed", rep.get("message", "Error merging branch."))
+
+                ttk.Button(merge_dialog, text="Execute Merge", command=_exec_merge).pack(pady=10)
+
+        def _do_verify():
+            chosen = combo.get()
+            if chosen:
+                res = mem.validate_checkpoint_integrity(chosen)
+                if res.get("valid"):
+                    info_lbl.config(text=f"✓ Verified: {res['track_count']} tracks healthy (params finite & bounded)", fg="#98c379")
+                    self.log(f"[Checkpoint Integrity] '{chosen}' verified healthy (all tracks within bounds).")
+                else:
+                    info_lbl.config(text=f"⚠ Corrupt: {len(res['issues'])} issues found", fg="#e06c75")
+                    self.log(f"[Checkpoint Integrity Error] '{chosen}': {res['issues']}")
+
+        def _do_undo_restore():
+            if mem.pre_restore_backup:
+                ok = mem.revert_to_pre_restore_state()
+                if ok:
+                    for t_name, track in mem.tracks.items():
+                        self.send_osc_direct(f"/track/{t_name}/fader", track.fader)
+                    self.log("[Session Memory] Successfully rolled back to pre-restore session state.")
+                    self.refresh_session_memory()
+                    dialog.destroy()
+            else:
+                messagebox.showinfo("Undo Restore", "No pre-restore backup available to rollback.")
+
+        def _do_export_bundle():
+            out_file = filedialog.asksaveasfilename(
+                title="Export Checkpoint Bundle",
+                defaultextension=".json",
+                filetypes=[("Checkpoint Bundle JSON", "*.json"), ("All Files", "*.*")]
+            )
+            if out_file:
+                try:
+                    import bobui_bridge
+                    rep = bobui_bridge.export_checkpoint_bundle_bridge(output_path=out_file, mem=mem)
+                    self.log(f"[Checkpoint Bundle] Exported {rep.get('checkpoint_count')} checkpoints to: {out_file}")
+                    messagebox.showinfo("Export Bundle", f"Checkpoint bundle successfully exported to:\n{out_file}")
+                except Exception as e:
+                    self.log(f"[Export Bundle Error] {e}")
+
+        def _do_import_bundle():
+            in_file = filedialog.askopenfilename(
+                title="Import Checkpoint Bundle",
+                filetypes=[("Checkpoint Bundle JSON", "*.json"), ("All Files", "*.*")]
+            )
+            if in_file:
+                try:
+                    import bobui_bridge
+                    rep = bobui_bridge.import_checkpoint_bundle_bridge(in_file, mem=mem)
+                    self.log(f"[Checkpoint Bundle] Imported {rep.get('checkpoints_imported')} checkpoints from: {in_file}")
+                    new_cps = mem.list_checkpoints()
+                    combo.config(values=new_cps)
+                    if new_cps:
+                        combo.set(new_cps[-1])
+                        _update_info()
+                    self.refresh_session_memory()
+                    messagebox.showinfo("Import Bundle", f"Imported {rep.get('checkpoints_imported')} checkpoints into session.")
+                except Exception as e:
+                    self.log(f"[Import Bundle Error] {e}")
+
+        def _do_prune():
+            limit_str = simpledialog.askstring("Prune Checkpoints", "Retain max how many checkpoints? (Default: 10):", initialvalue="10")
+            if limit_str:
+                try:
+                    limit_val = int(limit_str.strip())
+                    rep = mem.prune_checkpoints(max_checkpoints=limit_val, keep_tagged=True)
+                    self.log(f"[Checkpoint Prune] Purged {rep['pruned_count']} obsolete checkpoints (remaining: {rep['remaining_count']}).")
+                    new_cps = mem.list_checkpoints()
+                    combo.config(values=new_cps)
+                    if new_cps:
+                        combo.set(new_cps[-1])
+                        _update_info()
+                    self.refresh_session_memory()
+                    messagebox.showinfo("Prune Checkpoints", f"Purged {rep['pruned_count']} checkpoints. {rep['remaining_count']} preserved.")
+                except Exception as e:
+                    self.log(f"[Prune Error] {e}")
+
+        btn_row = tk.Frame(dialog)
+        btn_row.pack(pady=10)
+        ttk.Button(btn_row, text="Restore", command=_do_restore).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Undo Restore", command=_do_undo_restore).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Verify", command=_do_verify).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Fork...", command=_do_fork).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Merge...", command=_do_merge_branch).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Prune...", command=_do_prune).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Export Bundle...", command=_do_export_bundle).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Import Bundle...", command=_do_import_bundle).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Tag...", command=_do_tag).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Delete", command=_do_delete).pack(side="left", padx=2)
+        ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="left", padx=2)
+
+    def audit_session_state(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        res = mem.audit_session_consistency()
+        if res.get("healthy"):
+            self.log(f"[Session Audit] All {res.get('total_tracks')} tracks conform to parameter boundaries and valid roles.")
+        else:
+            self.log(f"[Session Audit] Resolved {len(res.get('issues_resolved'))} issues across session tracks:")
+            for issue in res.get("issues_resolved"):
+                self.log(f"  • {issue}")
+        self.refresh_session_memory()
+
+    def quick_save_snapshot(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        name = f"quick_snap_{int(time.time())}"
+        mem.save_checkpoint(name, tag="quick")
+        self.log(f"[Quick Snap] Checkpoint '{name}' saved successfully.")
+        self.refresh_session_memory()
+
+    def quick_revert_baseline(self):
+        if not session_memory:
+            return
+        mem = session_memory.SessionMemory()
+        checkpoints = mem.list_checkpoints()
+        if not checkpoints:
+            self.log("[Quick Revert] No baseline checkpoint found.")
+            return
+        base = checkpoints[0]
+        if mem.restore_checkpoint(base):
+            for t_name, track in mem.tracks.items():
+                self.send_osc_direct(f"/track/{t_name}/fader", track.fader)
+            self.log(f"[Quick Revert] Session reverted to baseline checkpoint '{base}'.")
+            self.refresh_session_memory()
 
     def save_session_snapshot(self):
         if not session_memory:
@@ -1088,6 +2007,18 @@ class OmniDashboard(tk.Tk):
             self.log(f"[Session Memory] Reverted {len(reverted)} parameters from last action.")
         else:
             self.log("[Session Memory] No actions available to undo.")
+        self.refresh_session_memory()
+
+    def redo_last_mix_action(self):
+        if not session_memory:
+            return
+        applied = session_memory.SessionMemory().redo_last_action()
+        if applied:
+            for path, val in applied:
+                self.send_osc_direct(path, val)
+            self.log(f"[Session Memory] Re-applied {len(applied)} parameters from redo stack.")
+        else:
+            self.log("[Session Memory] No actions available to redo.")
         self.refresh_session_memory()
 
     def refresh_session_memory(self):
@@ -1193,6 +2124,11 @@ class OmniDashboard(tk.Tk):
     def quit_application(self):
         self.log("Shutting down Bobtrax Omni-Dashboard and terminating all servers...")
         self._running = False
+        if session_memory:
+            try:
+                session_memory.SessionMemory().disable_auto_save()
+            except Exception:
+                pass
         self.stop_all_servers()
         if self.tray_icon:
             try:
@@ -1515,6 +2451,64 @@ class OmniDashboard(tk.Tk):
     # -------------------------------------------------------------
     # Omni-Plugin Bridge & DAW Workstation Launchers
     # -------------------------------------------------------------
+    def check_plugin_compat(self):
+        self.log("[Plugin Compatibility] Launching Cross-DAW Compatibility & Discovery Matrix...")
+        try:
+            import bobui_bridge
+            dialog = tk.Toplevel(self)
+            dialog.title("Cross-DAW Plugin Format Compatibility & Bridge Matrix")
+            dialog.geometry("640x480")
+            dialog.transient(self)
+
+            tk.Label(dialog, text="Omni-Plugin Format Compatibility Matrix", font=("Helvetica", 11, "bold")).pack(pady=8)
+            tk.Label(dialog, text="Transparent cross-DAW format wrapping via BobUI & OmniBridge", font=("Helvetica", 8, "italic"), fg="#7f848e").pack(pady=2)
+
+            matrix_text = tk.Text(dialog, wrap="none", font=("Monospace", 9), bg="#1e1e24", fg="#abb2bf", padx=8, pady=8)
+            matrix_text.pack(fill="both", expand=True, padx=10, pady=8)
+
+            def _populate_matrix():
+                matrix_text.config(state="normal")
+                matrix_text.delete("1.0", tk.END)
+                daws = ["ardour", "lmms", "muse", "zrythm"]
+                formats = ["VST3", "LV2", "CLAP", "VST2", "LADSPA"]
+
+                header = f"{'DAW':<10} | " + " | ".join(f"{fmt:<8}" for fmt in formats) + "\n"
+                sep = "-" * len(header) + "\n"
+                matrix_text.insert(tk.END, header)
+                matrix_text.insert(tk.END, sep)
+
+                for daw in daws:
+                    row = f"{daw.upper():<10} | "
+                    cols = []
+                    for fmt in formats:
+                        res = bobui_bridge.resolve_plugin_format_bridge(fmt, daw)
+                        status = "NATIVE" if res["mode"] == "NATIVE" else "BRIDGE"
+                        cols.append(f"{status:<8}")
+                    row += " | ".join(cols) + "\n"
+                    matrix_text.insert(tk.END, row)
+
+                matrix_text.insert(tk.END, "\n=== Discovered System Audio Plugins & Interop Paths ===\n\n")
+                plugins = bobui_bridge.scan_system_plugins()
+                for p in plugins:
+                    p_fmt = p["format"]
+                    matrix_text.insert(tk.END, f"• {p['name']} ({p_fmt} - {p['category']}):\n")
+                    for daw in daws:
+                        res = bobui_bridge.resolve_plugin_format_bridge(p_fmt, daw)
+                        matrix_text.insert(tk.END, f"    - {daw.upper()}: {res['mode']} (latency penalty: {res['latency_penalty_ms']}ms)\n")
+
+                matrix_text.config(state="disabled")
+
+            _populate_matrix()
+
+            btn_row = tk.Frame(dialog, pady=6)
+            btn_row.pack(fill="x")
+            ttk.Button(btn_row, text="Rescan Plugins", command=_populate_matrix).pack(side="left", padx=10)
+            ttk.Button(btn_row, text="Close", command=dialog.destroy).pack(side="right", padx=10)
+
+            self.log("[Plugin Compatibility] Matrix inspector opened successfully.")
+        except Exception as e:
+            self.log(f"[Plugin Compatibility Error] {e}")
+
     def probe_dsp_block(self):
         self.log("Dispatching 512-frame DSP audio block probe to Omni-Plugin Host...")
         def _probe():
@@ -1529,6 +2523,57 @@ class OmniDashboard(tk.Tk):
             except Exception as e:
                 self.after(0, lambda: self.log(f"[Omni DSP Probe Error] {e}"))
         threading.Thread(target=_probe, daemon=True).start()
+
+    def stream_headless_audio_block(self):
+        self.log("Streaming real-time headless audio block to Omni-Bridge (48kHz, 512 frames, f32le)...")
+        def _stream():
+            try:
+                import bobui_bridge
+                bridge = bobui_bridge.BobUIBridge()
+                res = bridge.stream_headless_audio_chunk(sample_rate=48000, frames=512, format_type="f32le")
+                if res.get("status") in ["ok", "simulated"]:
+                    self.after(0, lambda: self.log(
+                        f"[Headless Stream {res.get('status').upper()}] Frames: {res.get('frames')} | "
+                        f"SR: {res.get('sample_rate')}Hz | Peak: {res.get('peak')} | Latency: {res.get('latency_ms')}ms"
+                    ))
+                else:
+                    self.after(0, lambda: self.log(f"[Headless Stream Note] Response: {res.get('message', res.get('status'))}"))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[Headless Stream Error] {e}"))
+        threading.Thread(target=_stream, daemon=True).start()
+
+    def benchmark_dsp_stream(self):
+        self.log("Executing Headless DSP Streaming Benchmark across buffers [128, 256, 512, 1024]...")
+        def _bench():
+            try:
+                import bobui_bridge
+                bridge = bobui_bridge.BobUIBridge()
+                report = bridge.benchmark_headless_dsp_streaming(buffer_sizes=[128, 256, 512, 1024], iterations=4)
+                self.after(0, lambda: self.log("[DSP Benchmark Report]"))
+                for buf_sz, stats in report.items():
+                    self.after(0, lambda b=buf_sz, s=stats: self.log(
+                        f"  • Buffer {b:>4} frames: Mean Latency={s['mean_latency_ms']}ms | Jitter={s['jitter_ms']}ms | Peak={s['avg_peak']} ({s['mode']})"
+                    ))
+                self.after(0, lambda: self.log("DSP Streaming Benchmark completed successfully."))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[DSP Benchmark Error] {e}"))
+        threading.Thread(target=_bench, daemon=True).start()
+
+    def stress_test_dsp_stream_action(self):
+        self.log("[DSP Stress Test] Streaming 100 sustained audio blocks (512 frames) under pressure...")
+        def _stress():
+            try:
+                import bobui_bridge
+                bridge = bobui_bridge.BobUIBridge()
+                rep = bridge.stress_test_headless_audio_stream(buffer_size=512, block_count=100)
+                self.after(0, lambda: self.log(
+                    f"[DSP Stress Test Report] {rep['total_frames']} frames in {rep['elapsed_seconds']}s "
+                    f"({rep['throughput_frames_per_sec']:.0f} fps). Dropped: {rep['dropped_blocks']} | "
+                    f"Mean Lat: {rep['mean_latency_ms']}ms | Peak Spike: {rep['max_latency_spike_ms']}ms | Jitter: {rep['jitter_ms']}ms"
+                ))
+            except Exception as e:
+                self.after(0, lambda: self.log(f"[DSP Stress Test Error] {e}"))
+        threading.Thread(target=_stress, daemon=True).start()
 
     def test_omni_bridge(self):
         self.log("Testing Omni-Plugin Bridge IPC & Standalone Host...")

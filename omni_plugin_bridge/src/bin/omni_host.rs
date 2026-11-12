@@ -34,4 +34,9 @@ fn main() {
     bridge.process_audio(&input_l, &input_r);
     println!("• DSP Test    : 512 audio frames processed successfully.");
     println!("• Status      : IPC Host is live and listening on {}", socket_path);
+
+    // Keep process alive while serving IPC requests
+    loop {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
 }

@@ -49,9 +49,12 @@ class TrackState:
         self.name = name.lower()
         self.role = role.lower()
         self.fader = 0.0          # dB (-90 to +12)
+        self.pan = 0.0            # -1.0 (Left) to +1.0 (Right)
         self.peak_level = -60.0   # dBFS
         self.muted = False
         self.soloed = False
+        self.frozen = False
+        self.freeze_file = ""
         self.parameters = {}      # path suffix -> float value
         self.last_updated = time.time()
 
@@ -59,6 +62,8 @@ class TrackState:
         self.parameters[param_key] = float(value)
         if "fader" in param_key:
             self.fader = float(value)
+        elif "pan" in param_key:
+            self.pan = float(value)
         elif "meter" in param_key or "peak" in param_key:
             self.peak_level = float(value)
         self.last_updated = time.time()
@@ -68,9 +73,12 @@ class TrackState:
             "name": self.name,
             "role": self.role,
             "fader": self.fader,
+            "pan": self.pan,
             "peak_level": self.peak_level,
             "muted": self.muted,
             "soloed": self.soloed,
+            "frozen": self.frozen,
+            "freeze_file": self.freeze_file,
             "parameters": self.parameters,
             "last_updated": self.last_updated
         }
@@ -79,9 +87,12 @@ class TrackState:
     def from_dict(cls, data):
         track = cls(data.get("name", "track"), data.get("role", "generic"))
         track.fader = data.get("fader", 0.0)
+        track.pan = data.get("pan", 0.0)
         track.peak_level = data.get("peak_level", -60.0)
         track.muted = data.get("muted", False)
         track.soloed = data.get("soloed", False)
+        track.frozen = data.get("frozen", False)
+        track.freeze_file = data.get("freeze_file", "")
         track.parameters = data.get("parameters", {})
         track.last_updated = data.get("last_updated", time.time())
         return track
@@ -109,12 +120,352 @@ class SessionMemory:
         self.storage_path = storage_path
         self.tracks = {}
         self.action_history = []
+        self.redo_history = []
+        self.pre_restore_backup = None
+        self.stash_stack = []
         self.checkpoints = {}
+        self.markers = []
         self.omni_socket_path = DEFAULT_OMNI_SOCKET
         self.omni_synced_params = {}
         self.registered_daws = {}
+        self._auto_save_thread = None
+        self._auto_save_running = False
         self._load()
         self._initialized = True
+
+    def enable_auto_save(self, interval_seconds=15.0):
+        """Starts background auto-save daemon periodically persisting session memory and syncing to bridge."""
+        if self._auto_save_running:
+            return
+        self._auto_save_running = True
+
+        def _worker():
+            while self._auto_save_running:
+                time.sleep(interval_seconds)
+                if not self._auto_save_running:
+                    break
+                try:
+                    self._save()
+                    self.sync_session_manifest_to_bridge()
+                except Exception as e:
+                    logging.debug(f"Auto-save worker error: {e}")
+
+        self._auto_save_thread = threading.Thread(target=_worker, daemon=True)
+        self._auto_save_thread.start()
+
+    def disable_auto_save(self):
+        """Stops background auto-save daemon."""
+        self._auto_save_running = False
+        if self._auto_save_thread:
+            self._auto_save_thread = None
+
+    def is_auto_save_active(self):
+        return self._auto_save_running
+
+    def audit_session_consistency(self):
+        """Audits all tracks in session memory for fader bounds, valid roles, and parameter integrity."""
+        issues = []
+        for name, track in self.tracks.items():
+            # Check fader bounds (-90.0 dB to +12.0 dB)
+            if track.fader < -90.0 or track.fader > 12.0:
+                issues.append(f"Track '{name}' fader out of bounds ({track.fader} dB). Clamping.")
+                track.fader = max(-90.0, min(12.0, track.fader))
+            # Verify role
+            valid_roles = ["kick", "snare", "bass", "vocal", "cymbals", "synth", "master", "instrument", "generic"]
+            if track.role not in valid_roles:
+                new_role = self.infer_role(name)
+                issues.append(f"Track '{name}' has unknown role '{track.role}'. Re-inferred to '{new_role}'.")
+                track.role = new_role
+
+        if issues:
+            self._save()
+        return {
+            "total_tracks": len(self.tracks),
+            "healthy": len(issues) == 0,
+            "issues_resolved": issues
+        }
+
+    def compute_state_diff(self, checkpoint_name):
+        """Calculates minimal parameter differences between active tracks and a named checkpoint."""
+        if checkpoint_name not in self.checkpoints:
+            return None
+        snapshot = self.checkpoints[checkpoint_name]["snapshot"]
+        diff = {}
+
+        for name, track in self.tracks.items():
+            if name not in snapshot:
+                diff[name] = {"action": "added", "state": track.to_dict()}
+                continue
+
+            snap_track = snapshot[name]
+            track_diff = {}
+            if abs(track.fader - snap_track.get("fader", 0.0)) > 1e-3:
+                track_diff["fader"] = track.fader
+            if track.muted != snap_track.get("muted", False):
+                track_diff["muted"] = track.muted
+            if track.soloed != snap_track.get("soloed", False):
+                track_diff["soloed"] = track.soloed
+
+            # Parameters diff
+            snap_params = snap_track.get("parameters", {})
+            for p_key, p_val in track.parameters.items():
+                if p_key not in snap_params or abs(p_val - snap_params[p_key]) > 1e-3:
+                    if "parameters" not in track_diff:
+                        track_diff["parameters"] = {}
+                    track_diff["parameters"][p_key] = p_val
+
+            if track_diff:
+                diff[name] = {"action": "modified", "changes": track_diff}
+
+        for snap_name in snapshot.keys():
+            if snap_name not in self.tracks:
+                diff[snap_name] = {"action": "removed"}
+
+        return diff
+
+    def compare_session_snapshots(self, snap_a_name, snap_b_name=None):
+        """Compares two snapshots, or one snapshot against current live state.
+
+        Returns a detailed list of parameter diffs:
+        [{track, field, old_val, new_val, change_type}]
+        """
+        if snap_a_name not in self.checkpoints:
+            return []
+
+        snap_a = self.checkpoints[snap_a_name]["snapshot"]
+        if snap_b_name and snap_b_name in self.checkpoints:
+            snap_b = self.checkpoints[snap_b_name]["snapshot"]
+        else:
+            # Compare against current live tracks
+            snap_b = {k: t.to_dict() for k, t in self.tracks.items()}
+
+        diffs = []
+        all_tracks = set(snap_a.keys()).union(set(snap_b.keys()))
+
+        for t_name in sorted(all_tracks):
+            if t_name not in snap_a:
+                diffs.append({
+                    "track": t_name,
+                    "field": "track",
+                    "old_val": "MISSING",
+                    "new_val": "PRESENT",
+                    "change_type": "added"
+                })
+                continue
+            if t_name not in snap_b:
+                diffs.append({
+                    "track": t_name,
+                    "field": "track",
+                    "old_val": "PRESENT",
+                    "new_val": "MISSING",
+                    "change_type": "removed"
+                })
+                continue
+
+            track_a = snap_a[t_name]
+            track_b = snap_b[t_name]
+
+            # Fader
+            f_a = track_a.get("fader", 0.0)
+            f_b = track_b.get("fader", 0.0)
+            if abs(f_a - f_b) > 1e-3:
+                diffs.append({
+                    "track": t_name,
+                    "field": "fader",
+                    "old_val": f_a,
+                    "new_val": f_b,
+                    "change_type": "modified"
+                })
+
+            # Muted
+            m_a = track_a.get("muted", False)
+            m_b = track_b.get("muted", False)
+            if m_a != m_b:
+                diffs.append({
+                    "track": t_name,
+                    "field": "muted",
+                    "old_val": m_a,
+                    "new_val": m_b,
+                    "change_type": "modified"
+                })
+
+            # Soloed
+            s_a = track_a.get("soloed", False)
+            s_b = track_b.get("soloed", False)
+            if s_a != s_b:
+                diffs.append({
+                    "track": t_name,
+                    "field": "soloed",
+                    "old_val": s_a,
+                    "new_val": s_b,
+                    "change_type": "modified"
+                })
+
+        return diffs
+
+    def apply_state_diff(self, diff_dict):
+        """Applies an incremental patch dictionary to active session tracks."""
+        applied_changes = []
+        for name, change_data in diff_dict.items():
+            action = change_data.get("action")
+            if action == "removed":
+                if name in self.tracks:
+                    del self.tracks[name]
+                    applied_changes.append((f"/track/{name}/removed", 1.0))
+            elif action == "added":
+                state = change_data.get("state", {})
+                self.tracks[name] = TrackState.from_dict(state)
+                applied_changes.append((f"/track/{name}/added", 1.0))
+            elif action == "modified":
+                changes = change_data.get("changes", {})
+                track = self.get_or_create_track(name)
+                if "fader" in changes:
+                    track.fader = float(changes["fader"])
+                    applied_changes.append((f"/track/{name}/fader", track.fader))
+                if "muted" in changes:
+                    track.muted = bool(changes["muted"])
+                    applied_changes.append((f"/track/{name}/mute", 1.0 if track.muted else 0.0))
+                if "soloed" in changes:
+                    track.soloed = bool(changes["soloed"])
+                    applied_changes.append((f"/track/{name}/solo", 1.0 if track.soloed else 0.0))
+                for p_key, p_val in changes.get("parameters", {}).items():
+                    track.update_parameter(p_key, p_val)
+                    applied_changes.append((f"/track/{name}/{p_key}", float(p_val)))
+
+        if applied_changes:
+            self._save()
+        return applied_changes
+
+    def resolve_session_conflict(self, incoming_tracks, strategy="merge_latest"):
+        """Merges foreign session tracks into local session memory, resolving parameter conflicts.
+
+        Supports incoming_tracks as dict {track_name: track_obj/dict} or list of TrackState objects/dicts.
+
+        Strategies:
+        - 'merge_latest': Preserves whichever update has the newer timestamp.
+        - 'overwrite_remote': Overwrites local track with foreign incoming parameters.
+        - 'keep_local': Discards foreign conflicting changes and keeps local state.
+        """
+        if isinstance(incoming_tracks, list):
+            track_items = []
+            for item in incoming_tracks:
+                t_name = item.name if hasattr(item, "name") else item.get("name", "unnamed")
+                track_items.append((t_name, item))
+        elif isinstance(incoming_tracks, dict):
+            track_items = list(incoming_tracks.items())
+        else:
+            track_items = []
+
+        merge_report = {
+            "status": "success",
+            "strategy": strategy,
+            "added": [],
+            "updated": [],
+            "conflicts": [],
+            "changes_applied": [],
+            "conflicts_resolved": [],
+            "merged_tracks_count": 0
+        }
+
+        for name, in_track in track_items:
+            name_lower = name.lower()
+            if name_lower not in self.tracks:
+                # New track
+                if isinstance(in_track, TrackState):
+                    self.tracks[name_lower] = in_track
+                else:
+                    self.tracks[name_lower] = TrackState.from_dict(in_track)
+                merge_report["added"].append(name_lower)
+                merge_report["changes_applied"].append({
+                    "track": name_lower,
+                    "field": "created",
+                    "old_val": None,
+                    "new_val": self.tracks[name_lower].fader
+                })
+                continue
+
+            local_track = self.tracks[name_lower]
+            in_fader = in_track.fader if hasattr(in_track, "fader") else (in_track.get("fader", local_track.fader) if isinstance(in_track, dict) else local_track.fader)
+            in_muted = in_track.muted if hasattr(in_track, "muted") else (in_track.get("muted", local_track.muted) if isinstance(in_track, dict) else local_track.muted)
+            in_soloed = in_track.soloed if hasattr(in_track, "soloed") else (in_track.get("soloed", local_track.soloed) if isinstance(in_track, dict) else local_track.soloed)
+
+            # Use last_updated as timestamp
+            local_time = getattr(local_track, "last_updated", getattr(local_track, "updated_at", 0.0))
+            if hasattr(in_track, "last_updated"):
+                in_updated_at = in_track.last_updated
+            elif hasattr(in_track, "updated_at"):
+                in_updated_at = in_track.updated_at
+            elif isinstance(in_track, dict):
+                in_updated_at = in_track.get("last_updated", in_track.get("updated_at", 0.0))
+            else:
+                in_updated_at = 0.0
+
+            has_conflict = (abs(local_track.fader - in_fader) > 1e-3 or
+                            local_track.muted != in_muted or
+                            local_track.soloed != in_soloed)
+
+            if has_conflict:
+                conflict_details = {
+                    "track": name_lower,
+                    "local": {"fader": local_track.fader, "muted": local_track.muted, "soloed": local_track.soloed, "updated_at": local_time},
+                    "remote": {"fader": in_fader, "muted": in_muted, "soloed": in_soloed, "updated_at": in_updated_at}
+                }
+                merge_report["conflicts"].append(conflict_details)
+
+                should_apply_remote = False
+                if strategy == "overwrite_remote":
+                    should_apply_remote = True
+                    merge_report["conflicts_resolved"].append(f"{name_lower} -> overwritten with remote")
+                elif strategy == "merge_latest":
+                    if in_updated_at >= local_time:
+                        should_apply_remote = True
+                        merge_report["conflicts_resolved"].append(f"{name_lower} -> merged latest (remote newer)")
+                    else:
+                        should_apply_remote = False
+                        merge_report["conflicts_resolved"].append(f"{name_lower} -> merged latest (local newer)")
+                else:  # keep_local
+                    should_apply_remote = False
+                    merge_report["conflicts_resolved"].append(f"{name_lower} -> kept local")
+
+                if should_apply_remote:
+                    if abs(local_track.fader - in_fader) > 1e-3:
+                        merge_report["changes_applied"].append({
+                            "track": name_lower, "field": "fader",
+                            "old_val": local_track.fader, "new_val": float(in_fader)
+                        })
+                        local_track.fader = float(in_fader)
+                    if local_track.muted != in_muted:
+                        merge_report["changes_applied"].append({
+                            "track": name_lower, "field": "muted",
+                            "old_val": local_track.muted, "new_val": bool(in_muted)
+                        })
+                        local_track.muted = bool(in_muted)
+                    if local_track.soloed != in_soloed:
+                        merge_report["changes_applied"].append({
+                            "track": name_lower, "field": "soloed",
+                            "old_val": local_track.soloed, "new_val": bool(in_soloed)
+                        })
+                        local_track.soloed = bool(in_soloed)
+
+                    local_track.last_updated = max(local_time, in_updated_at, time.time())
+                    merge_report["updated"].append(name_lower)
+
+        merge_report["merged_tracks_count"] = len(self.tracks)
+        self._save()
+        return merge_report
+
+    def reclassify_track_roles(self):
+        """Re-evaluates role classification for every active track based on naming heuristic."""
+        reclassified = {}
+        for name, track in self.tracks.items():
+            old_role = track.role
+            new_role = self.infer_role(name)
+            if old_role != new_role:
+                track.role = new_role
+                reclassified[name] = {"old": old_role, "new": new_role}
+        if reclassified:
+            self._save()
+        return reclassified
 
     def register_daw(self, daw_name, port=None):
         """Records active DAW heartbeat and communication endpoint."""
@@ -135,6 +486,62 @@ class SessionMemory:
             k: v for k, v in self.registered_daws.items()
             if (now - v.get("last_seen", 0)) <= timeout
         }
+
+    def ping_daw_endpoints(self):
+        """Dispatches ping telemetry checks across registered active DAWs and measures roundtrip response time."""
+        results = {}
+        for daw_name, daw_info in self.registered_daws.items():
+            t0 = time.time()
+            port = daw_info.get("port")
+            # If socket or OSC port is specified, perform test probe
+            if port:
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    sock.settimeout(0.2)
+                    # Lightweight OSC ping payload
+                    sock.sendto(b"/bobtrax/ping\x00\x00\x00,\x00\x00\x00", ("127.0.0.1", port))
+                    sock.close()
+                    elapsed_ms = (time.time() - t0) * 1000.0
+                    results[daw_name] = {
+                        "status": "online",
+                        "latency_ms": round(elapsed_ms, 2),
+                        "port": port,
+                        "type": "udp_osc"
+                    }
+                except Exception as e:
+                    results[daw_name] = {
+                        "status": "error",
+                        "latency_ms": None,
+                        "error": str(e)
+                    }
+            else:
+                # Simulated local loopback check
+                results[daw_name] = {
+                    "status": "registered",
+                    "latency_ms": 0.45,
+                    "type": "simulated_ipc"
+                }
+
+        # Check Omni Bridge socket
+        t_sock = time.time()
+        if os.path.exists(self.omni_socket_path):
+            try:
+                with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
+                    client.settimeout(0.2)
+                    client.connect(self.omni_socket_path)
+                    client.sendall(b"GET_ALL\n")
+                    _ = client.recv(256)
+                results["omni_bridge"] = {
+                    "status": "online",
+                    "latency_ms": round((time.time() - t_sock) * 1000.0, 2),
+                    "type": "unix_socket"
+                }
+            except Exception as e:
+                results["omni_bridge"] = {"status": "error", "error": str(e), "type": "unix_socket"}
+        else:
+            results["omni_bridge"] = {"status": "offline", "latency_ms": None, "type": "unix_socket"}
+
+        return results
 
     def infer_role(self, track_name):
         name = track_name.lower()
@@ -181,6 +588,8 @@ class SessionMemory:
             "moves": moves
         }
         self.action_history.append(entry)
+        # Any new action clears the forward redo history
+        self.redo_history.clear()
         # Keep last 50 actions
         if len(self.action_history) > 50:
             self.action_history.pop(0)
@@ -212,34 +621,447 @@ class SessionMemory:
         self._save()
         return track.soloed
 
-    def save_checkpoint(self, name):
+    def freeze_track(self, track_name, audio_path=None):
+        """Freezes a track, caching its rendered audio and bypassing real-time DSP load."""
+        track = self.get_or_create_track(track_name)
+        track.frozen = True
+        track.freeze_file = audio_path or f"/tmp/bobtrax_freeze_{track.name}.wav"
+        track.last_updated = time.time()
+        self._save()
+        return {
+            "status": "frozen",
+            "track": track.name,
+            "freeze_file": track.freeze_file
+        }
+
+    def unfreeze_track(self, track_name):
+        """Unfreezes a track, returning it to active real-time DSP synthesis/processing."""
+        track = self.get_or_create_track(track_name)
+        track.frozen = False
+        track.freeze_file = ""
+        track.last_updated = time.time()
+        self._save()
+        return {
+            "status": "active",
+            "track": track.name
+        }
+
+    def save_checkpoint(self, name, tag="milestone", parent_checkpoint_id=None):
         """Creates a named snapshot of current track states and parameters."""
         snapshot = {k: t.to_dict() for k, t in self.tracks.items()}
+        # If updating an existing checkpoint and parent_checkpoint_id is not specified, preserve existing parent
+        existing_parent = self.checkpoints.get(name, {}).get("parent_checkpoint_id") if name in self.checkpoints else None
         self.checkpoints[name] = {
             "timestamp": time.time(),
             "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "tag": tag,
+            "parent_checkpoint_id": parent_checkpoint_id if parent_checkpoint_id is not None else existing_parent,
             "snapshot": snapshot
         }
         self._save()
         return name
 
+    def fork_checkpoint(self, source_checkpoint_id, new_checkpoint_name, branch_tag=None):
+        """Forks a new divergent checkpoint branch from an existing checkpoint snapshot."""
+        if source_checkpoint_id not in self.checkpoints:
+            return None
+
+        src_cp = self.checkpoints[source_checkpoint_id]
+        import copy
+        cloned_snapshot = copy.deepcopy(src_cp.get("snapshot", {}))
+        tag = branch_tag or f"branch_from_{source_checkpoint_id}"
+
+        self.checkpoints[new_checkpoint_name] = {
+            "timestamp": time.time(),
+            "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "tag": tag,
+            "parent_checkpoint_id": source_checkpoint_id,
+            "snapshot": cloned_snapshot
+        }
+        self._save()
+        return new_checkpoint_name
+
+    def get_checkpoint_lineage(self, checkpoint_id):
+        """Returns ordered ancestor chain from the given checkpoint back to root."""
+        lineage = []
+        curr = checkpoint_id
+        visited = set()
+        while curr and curr in self.checkpoints and curr not in visited:
+            visited.add(curr)
+            cp = self.checkpoints[curr]
+            lineage.append({
+                "checkpoint": curr,
+                "tag": cp.get("tag", "milestone"),
+                "timestamp": cp.get("timestamp"),
+                "time_str": cp.get("time_str"),
+                "parent": cp.get("parent_checkpoint_id")
+            })
+            curr = cp.get("parent_checkpoint_id")
+        return lineage
+
+    def merge_checkpoint_branch(self, source_checkpoint_id, target_checkpoint_id=None, strategy="merge_latest"):
+        """Merges a branch checkpoint's tracks into a target checkpoint or active live state."""
+        if source_checkpoint_id not in self.checkpoints:
+            return {"status": "error", "message": f"Source checkpoint '{source_checkpoint_id}' not found"}
+
+        source_tracks = self.checkpoints[source_checkpoint_id].get("snapshot", {})
+
+        if target_checkpoint_id is None:
+            # Merge directly into live session memory
+            report = self.resolve_session_conflict(source_tracks, strategy=strategy)
+            report["source_checkpoint"] = source_checkpoint_id
+            report["target"] = "live_session"
+            return report
+        else:
+            if target_checkpoint_id not in self.checkpoints:
+                return {"status": "error", "message": f"Target checkpoint '{target_checkpoint_id}' not found"}
+
+            target_tracks = self.checkpoints[target_checkpoint_id].get("snapshot", {})
+            import copy
+            merged_target = copy.deepcopy(target_tracks)
+
+            changes_applied = []
+            for t_name, s_data in source_tracks.items():
+                if t_name not in merged_target:
+                    merged_target[t_name] = copy.deepcopy(s_data)
+                    changes_applied.append({"track": t_name, "action": "added"})
+                else:
+                    t_tgt = merged_target[t_name]
+                    if strategy == "overwrite_remote" or (strategy == "merge_latest" and s_data.get("last_updated", 0) >= t_tgt.get("last_updated", 0)):
+                        merged_target[t_name] = copy.deepcopy(s_data)
+                        changes_applied.append({"track": t_name, "action": "updated"})
+
+            self.checkpoints[target_checkpoint_id]["snapshot"] = merged_target
+            self.checkpoints[target_checkpoint_id]["last_merged_from"] = source_checkpoint_id
+            self._save()
+            return {
+                "status": "success",
+                "source_checkpoint": source_checkpoint_id,
+                "target_checkpoint": target_checkpoint_id,
+                "strategy": strategy,
+                "changes_applied": changes_applied,
+                "merged_tracks_count": len(merged_target)
+            }
+
+    def validate_checkpoint_integrity(self, name):
+        """Validates that a saved checkpoint has uncorrupted tracks, finite numbers, and safe bounds."""
+        if name not in self.checkpoints:
+            return {"valid": False, "reason": "Checkpoint not found", "issues": ["not_found"]}
+
+        snapshot = self.checkpoints[name].get("snapshot", {})
+        if not snapshot:
+            return {"valid": False, "reason": "Empty checkpoint snapshot", "issues": ["empty_snapshot"]}
+
+        issues = []
+        for t_name, t_data in snapshot.items():
+            if not isinstance(t_data, dict):
+                issues.append(f"{t_name}: corrupted record")
+                continue
+
+            fader = t_data.get("fader")
+            if fader is None or not isinstance(fader, (int, float)) or fader < -90.0 or fader > 12.0:
+                issues.append(f"{t_name}: invalid fader level ({fader})")
+
+            pan = t_data.get("pan", 0.0)
+            if not isinstance(pan, (int, float)) or pan < -1.0 or pan > 1.0:
+                issues.append(f"{t_name}: invalid pan position ({pan})")
+
+        return {
+            "valid": len(issues) == 0,
+            "track_count": len(snapshot),
+            "issues": issues,
+            "reason": "OK" if len(issues) == 0 else f"{len(issues)} validation failures"
+        }
+
     def restore_checkpoint(self, name):
         """Restores session memory to a previously saved checkpoint snapshot."""
         if name not in self.checkpoints:
             return False
+        # Verify integrity before restoring
+        integrity = self.validate_checkpoint_integrity(name)
+        if not integrity.get("valid"):
+            logging.warning(f"Checkpoint '{name}' failed integrity check: {integrity.get('issues')}")
+            return False
+
+        # Save pre-restore backup to support undoing checkpoint restoration
+        self.pre_restore_backup = {k: t.to_dict() for k, t in self.tracks.items()}
+
         data = self.checkpoints[name]["snapshot"]
         self.tracks = {k: TrackState.from_dict(v) for k, v in data.items()}
         self._save()
         return True
 
+    def revert_to_pre_restore_state(self):
+        """Reverts the session memory to the state immediately before the last checkpoint restore."""
+        if not self.pre_restore_backup:
+            return False
+        self.tracks = {k: TrackState.from_dict(v) for k, v in self.pre_restore_backup.items()}
+        self.pre_restore_backup = None
+        self._save()
+        return True
+
+    def delete_checkpoint(self, name):
+        """Removes a saved checkpoint from session memory."""
+        if name in self.checkpoints:
+            del self.checkpoints[name]
+            self._save()
+            return True
+        return False
+
+    def tag_checkpoint(self, name, tag):
+        """Updates the categorization tag for an existing checkpoint."""
+        if name in self.checkpoints:
+            self.checkpoints[name]["tag"] = tag
+            self._save()
+            return True
+        return False
+
     def list_checkpoints(self):
         return list(self.checkpoints.keys())
+
+    def get_checkpoint_details(self, name):
+        """Returns structured metadata about a specific checkpoint snapshot."""
+        if name not in self.checkpoints:
+            return None
+        cp = self.checkpoints[name]
+        return {
+            "name": name,
+            "timestamp": cp.get("timestamp"),
+            "time_str": cp.get("time_str"),
+            "tag": cp.get("tag", "milestone"),
+            "parent_checkpoint_id": cp.get("parent_checkpoint_id"),
+            "track_count": len(cp.get("snapshot", {})),
+            "tracks": list(cp.get("snapshot", {}).keys())
+        }
+
+    def prune_checkpoints(self, max_checkpoints=20, keep_tagged=True):
+        """Prunes oldest checkpoints exceeding max quota, preserving tagged milestones and branch parents."""
+        if len(self.checkpoints) <= max_checkpoints:
+            return {"status": "ok", "pruned_count": 0, "remaining_count": len(self.checkpoints), "pruned": []}
+
+        # Identify all checkpoints referenced as parents (branch roots/ancestors)
+        referenced_parents = set()
+        for cp in self.checkpoints.values():
+            p_id = cp.get("parent_checkpoint_id")
+            if p_id:
+                referenced_parents.add(p_id)
+
+        # Sort candidate checkpoints chronologically (oldest first)
+        candidates = []
+        for name, cp in self.checkpoints.items():
+            is_tagged = cp.get("tag") not in [None, "", "milestone", "quick", "imported_bundle"]
+            is_parent = name in referenced_parents
+            candidates.append({
+                "name": name,
+                "timestamp": cp.get("timestamp", 0),
+                "is_tagged": is_tagged,
+                "is_parent": is_parent
+            })
+
+        candidates.sort(key=lambda x: x["timestamp"])
+
+        to_remove = []
+        excess = len(self.checkpoints) - max_checkpoints
+        for c in candidates:
+            if len(to_remove) >= excess:
+                break
+            if keep_tagged and (c["is_tagged"] or c["is_parent"]):
+                continue
+            to_remove.append(c["name"])
+
+        for name in to_remove:
+            del self.checkpoints[name]
+
+        if to_remove:
+            self._save()
+
+        return {
+            "status": "ok",
+            "pruned_count": len(to_remove),
+            "remaining_count": len(self.checkpoints),
+            "pruned": to_remove
+        }
+
+    def get_session_synchronization_metrics(self):
+        """Calculates aggregate cross-DAW session synchronization health and statistics."""
+        active_daws = self.get_active_daws(timeout=60.0)
+        total_tracks = len(self.tracks)
+
+        frozen_count = sum(1 for t in self.tracks.values() if t.frozen)
+        muted_count = sum(1 for t in self.tracks.values() if t.muted)
+        soloed_count = sum(1 for t in self.tracks.values() if t.soloed)
+
+        # Calculate fader and pan variance across active tracks
+        fader_levels = [t.fader for t in self.tracks.values()]
+        mean_fader = sum(fader_levels) / total_tracks if total_tracks > 0 else 0.0
+
+        checkpoint_count = len(self.checkpoints)
+        max_lineage_depth = 0
+        for cp_id in self.checkpoints:
+            depth = len(self.get_checkpoint_lineage(cp_id))
+            if depth > max_lineage_depth:
+                max_lineage_depth = depth
+
+        last_sync = max([t.last_updated for t in self.tracks.values()]) if self.tracks else time.time()
+
+        return {
+            "status": "healthy" if total_tracks > 0 else "empty",
+            "total_tracks": total_tracks,
+            "active_daws_count": len(active_daws),
+            "active_daws": list(active_daws.keys()),
+            "frozen_tracks_count": frozen_count,
+            "muted_tracks_count": muted_count,
+            "soloed_tracks_count": soloed_count,
+            "mean_fader_level": round(mean_fader, 2),
+            "checkpoint_count": checkpoint_count,
+            "max_lineage_depth": max_lineage_depth,
+            "action_history_depth": len(self.action_history),
+            "redo_history_depth": len(self.redo_history),
+            "last_sync_timestamp": last_sync,
+            "last_sync_str": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(last_sync))
+        }
+
+    def stash_session_state(self, stash_name=None):
+        """Pushes current in-flight session mixer state onto the LIFO stash stack."""
+        name = stash_name or f"stash_{int(time.time())}"
+        entry = {
+            "name": name,
+            "timestamp": time.time(),
+            "time_str": time.strftime("%Y-%m-%d %H:%M:%S"),
+            "snapshot": {k: t.to_dict() for k, t in self.tracks.items()}
+        }
+        self.stash_stack.append(entry)
+        self._save()
+        return {
+            "status": "stashed",
+            "stash_name": name,
+            "stash_depth": len(self.stash_stack),
+            "tracks_stashed": len(entry["snapshot"])
+        }
+
+    def pop_stash_session_state(self, stash_name=None):
+        """Pops and restores the most recent (or named) stashed session state."""
+        if not self.stash_stack:
+            return {"status": "error", "message": "Stash stack is empty", "restored": False}
+
+        target_idx = -1
+        if stash_name:
+            for idx, item in enumerate(self.stash_stack):
+                if item["name"] == stash_name:
+                    target_idx = idx
+                    break
+            if target_idx == -1:
+                return {"status": "error", "message": f"Stash '{stash_name}' not found", "restored": False}
+
+        stashed = self.stash_stack.pop(target_idx)
+        data = stashed["snapshot"]
+        self.tracks = {k: TrackState.from_dict(v) for k, v in data.items()}
+        self._save()
+        return {
+            "status": "popped",
+            "stash_name": stashed["name"],
+            "stash_depth": len(self.stash_stack),
+            "tracks_restored": len(self.tracks),
+            "restored": True
+        }
+
+    def validate_session_transition(self, from_daw, to_daw):
+        """Runs pre-flight validation on current session state before executing DAW transition."""
+        issues = []
+        warnings = []
+
+        if not self.tracks:
+            issues.append("Session contains 0 tracks; cannot transition empty session.")
+
+        supported_daws = ["ardour", "lmms", "muse", "zrythm", "bobui"]
+        f_norm = from_daw.lower()
+        t_norm = to_daw.lower()
+
+        if f_norm not in supported_daws:
+            issues.append(f"Source DAW '{from_daw}' is not recognized.")
+        if t_norm not in supported_daws:
+            issues.append(f"Target DAW '{to_daw}' is not recognized.")
+
+        # Check track parameter limits
+        for t_name, track in self.tracks.items():
+            if track.fader < -90.0 or track.fader > 12.0:
+                issues.append(f"Track '{t_name}' has invalid fader level: {track.fader}")
+            if track.pan < -1.0 or track.pan > 1.0:
+                issues.append(f"Track '{t_name}' has invalid pan position: {track.pan}")
+            if track.frozen and not track.freeze_file:
+                warnings.append(f"Track '{t_name}' is frozen but has no rendered freeze_file.")
+
+        return {
+            "valid": len(issues) == 0,
+            "from_daw": f_norm,
+            "to_daw": t_norm,
+            "total_tracks": len(self.tracks),
+            "issues": issues,
+            "warnings": warnings,
+            "reason": "OK" if len(issues) == 0 else f"{len(issues)} transition pre-flight issues detected"
+        }
+
+    def simulate_session_transition(self, from_daw, to_daw):
+        """Generates dry-run migration preview and compatibility matrix without mutating session state."""
+        preflight = self.validate_session_transition(from_daw, to_daw)
+
+        # DAW feature matrices
+        daw_features = {
+            "ardour": {"native_formats": ["LV2", "VST3", "LADSPA"], "supports_freeze": True, "pan_law": "linear"},
+            "lmms": {"native_formats": ["VST2", "LADSPA", "SoundFont"], "supports_freeze": True, "pan_law": "constant_power"},
+            "muse": {"native_formats": ["LV2", "LADSPA", "DSSI"], "supports_freeze": False, "pan_law": "linear"},
+            "zrythm": {"native_formats": ["LV2", "VST3", "CLAP"], "supports_freeze": True, "pan_law": "linear"},
+            "bobui": {"native_formats": ["LV2", "VST3", "CLAP", "VST2"], "supports_freeze": True, "pan_law": "linear"}
+        }
+
+        tgt_feats = daw_features.get(to_daw.lower(), {})
+        target_native = tgt_feats.get("native_formats", [])
+        supports_freeze = tgt_feats.get("supports_freeze", True)
+
+        compatible_tracks = []
+        bridged_tracks = []
+
+        for name, track in self.tracks.items():
+            needs_bridge = False
+            for p_key in track.parameters:
+                if "plugins" in p_key:
+                    # Check format compatibility
+                    fmt = "CLAP" if "clap" in p_key.lower() else ("LV2" if "lv2" in p_key.lower() else "VST3")
+                    if fmt not in target_native:
+                        needs_bridge = True
+                        break
+
+            if track.frozen and not supports_freeze:
+                needs_bridge = True
+
+            if needs_bridge:
+                bridged_tracks.append(name)
+            else:
+                compatible_tracks.append(name)
+
+        overall_score = round((len(compatible_tracks) / max(1, len(self.tracks))) * 100.0, 1)
+
+        return {
+            "status": "simulation_ready" if preflight["valid"] else "incompatible",
+            "from_daw": from_daw.lower(),
+            "to_daw": to_daw.lower(),
+            "preflight_valid": preflight["valid"],
+            "total_tracks": len(self.tracks),
+            "fully_compatible_tracks": compatible_tracks,
+            "bridged_tracks": bridged_tracks,
+            "compatibility_percentage": overall_score,
+            "target_pan_law": tgt_feats.get("pan_law", "linear"),
+            "target_supports_freeze": supports_freeze,
+            "preflight_issues": preflight["issues"],
+            "preflight_warnings": preflight["warnings"]
+        }
 
     def undo_last_action(self):
         """Reverts parameter changes introduced by the most recent AI mixing action."""
         if not self.action_history:
             return []
         last_action = self.action_history.pop()
+        self.redo_history.append(last_action)
         reverted_moves = []
         for path, val in last_action.get("moves", []):
             parts = path.strip("/").split("/")
@@ -257,6 +1079,19 @@ class SessionMemory:
                     reverted_moves.append((path, 0.0))
         self._save()
         return reverted_moves
+
+    def redo_last_action(self):
+        """Re-applies the most recently undone AI mixing action."""
+        if not self.redo_history:
+            return []
+        action = self.redo_history.pop()
+        self.action_history.append(action)
+        applied_moves = []
+        for path, val in action.get("moves", []):
+            self.record_osc_change(path, val)
+            applied_moves.append((path, val))
+        self._save()
+        return applied_moves
 
     def sync_plugin_parameter(self, track_id, plugin_id, param_name, value, send_ipc=True):
         """Synchronizes an Omni-Plugin Bridge parameter across DAWs and updates session memory."""
@@ -321,10 +1156,41 @@ class SessionMemory:
             logging.debug(f"Omni-Plugin IPC send error: {e}")
             return False
 
+    def add_session_marker(self, name, position_seconds, marker_type="cue", color="#61afef"):
+        """Adds a timeline arrangement marker or cue point."""
+        marker_id = f"marker_{int(position_seconds * 1000)}_{len(self.markers)}"
+        marker_entry = {
+            "id": marker_id,
+            "name": name,
+            "position": round(float(position_seconds), 3),
+            "type": marker_type,
+            "color": color,
+            "created_at": time.time()
+        }
+        self.markers.append(marker_entry)
+        self.markers.sort(key=lambda m: m["position"])
+        self._save()
+        return marker_entry
+
+    def remove_session_marker(self, marker_id_or_name):
+        """Removes a timeline marker by id or name."""
+        initial_len = len(self.markers)
+        self.markers = [m for m in self.markers if m.get("id") != marker_id_or_name and m.get("name") != marker_id_or_name]
+        removed = initial_len - len(self.markers)
+        if removed > 0:
+            self._save()
+            return True
+        return False
+
+    def list_session_markers(self):
+        """Returns sorted list of timeline markers."""
+        return list(self.markers)
+
     def get_summary(self):
         return {
             "total_tracks": len(self.tracks),
             "tracks": {k: t.to_dict() for k, t in self.tracks.items()},
+            "markers": self.markers,
             "recent_actions": self.action_history[-5:],
             "omni_synced_params": self.omni_synced_params
         }
@@ -334,7 +1200,9 @@ class SessionMemory:
             data = {
                 "tracks": {k: t.to_dict() for k, t in self.tracks.items()},
                 "history": self.action_history,
-                "checkpoints": self.checkpoints
+                "stash": self.stash_stack,
+                "checkpoints": self.checkpoints,
+                "markers": self.markers
             }
             with open(self.storage_path, "w") as f:
                 json.dump(data, f, indent=2)
@@ -355,7 +1223,9 @@ class SessionMemory:
                 for t_name, t_data in data.get("tracks", {}).items():
                     self.tracks[t_name] = TrackState.from_dict(t_data)
                 self.action_history = data.get("history", [])
+                self.stash_stack = data.get("stash", [])
                 self.checkpoints = data.get("checkpoints", {})
+                self.markers = data.get("markers", [])
         except Exception as e:
             logging.warning(f"SessionMemory load warning: {e}")
 

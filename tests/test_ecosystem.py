@@ -91,6 +91,64 @@ class TestSessionMemory(unittest.TestCase):
         self.assertTrue(any("snare" in r[0] for r in reverted))
         self.assertEqual(self.mem.tracks["snare"].fader, 0.0)
 
+    def test_checkpoint_metadata_details(self):
+        self.mem.set_fader("vocals", 2.0)
+        self.mem.save_checkpoint("vox_lead")
+        details = self.mem.get_checkpoint_details("vox_lead")
+        self.assertIsNotNone(details)
+        self.assertEqual(details["name"], "vox_lead")
+        self.assertIn("vocals", details["tracks"])
+        self.assertGreaterEqual(details["track_count"], 1)
+
+    def test_session_auto_save_lifecycle(self):
+        self.assertFalse(self.mem.is_auto_save_active())
+        self.mem.enable_auto_save(interval_seconds=0.1)
+        self.assertTrue(self.mem.is_auto_save_active())
+        self.mem.disable_auto_save()
+        self.assertFalse(self.mem.is_auto_save_active())
+
+    def test_session_consistency_audit(self):
+        # Inject an out-of-bounds fader and an invalid role
+        track = self.mem.get_or_create_track("mystery_track")
+        track.fader = 45.0  # Excessive
+        track.role = "alien_synth_invalid"
+
+        res = self.mem.audit_session_consistency()
+        self.assertFalse(res["healthy"])
+        self.assertGreater(len(res["issues_resolved"]), 0)
+
+        # Fader must be clamped and role re-inferred
+        self.assertLessEqual(self.mem.tracks["mystery_track"].fader, 12.0)
+        self.assertIn(self.mem.tracks["mystery_track"].role, ["kick", "snare", "bass", "vocal", "cymbals", "synth", "master", "instrument", "generic"])
+
+    def test_session_state_diff_and_patch(self):
+        self.mem.set_fader("kick", 0.0)
+        self.mem.save_checkpoint("base_check")
+
+        # No diff immediately
+        diff = self.mem.compute_state_diff("base_check")
+        self.assertEqual(diff, {})
+
+        # Mutate
+        self.mem.set_fader("kick", -4.5)
+        self.mem.toggle_mute("kick")
+        diff_mutated = self.mem.compute_state_diff("base_check")
+        self.assertIn("kick", diff_mutated)
+        self.assertEqual(diff_mutated["kick"]["changes"]["fader"], -4.5)
+        self.assertTrue(diff_mutated["kick"]["changes"]["muted"])
+
+        # Patch application
+        patch = {
+            "kick": {
+                "action": "modified",
+                "changes": {"fader": -1.0, "muted": False}
+            }
+        }
+        applied = self.mem.apply_state_diff(patch)
+        self.assertEqual(self.mem.tracks["kick"].fader, -1.0)
+        self.assertFalse(self.mem.tracks["kick"].muted)
+        self.assertTrue(any("fader" in p[0] for p in applied))
+
 
 class TestAiMixingAssistant(unittest.TestCase):
     def test_acoustic_dsp_rules(self):
@@ -232,6 +290,15 @@ class TestBobUIBridgeSync(unittest.TestCase):
         self.assertEqual(res["frames"], 256)
         self.assertEqual(res["gain"], 0.5)
 
+    def test_plugin_compatibility_registry(self):
+        info_ardour = bobui_bridge.query_plugin_compatibility("TestPlugin", "ardour")
+        self.assertIn("LV2", info_ardour["native_formats"])
+        self.assertIn("CLAP", info_ardour["bridged_formats"])
+
+        info_lmms = bobui_bridge.query_plugin_compatibility("TestPlugin", "lmms")
+        self.assertIn("VST2", info_lmms["native_formats"])
+        self.assertIn("VST3", info_lmms["bridged_formats"])
+
 
 class TestBobUISessionManagement(unittest.TestCase):
     def test_bobui_session_export_and_import(self):
@@ -277,6 +344,55 @@ class TestBobUISessionManagement(unittest.TestCase):
             bobui_bridge.undo_session_action(mem=mem)
             self.assertEqual(mem.tracks["vocals"].fader, 0.0)
 
+    def test_fast_sync_binary_state(self):
+        # Verify binary packing output
+        res = bobui_bridge.fast_sync_track_state("master", fader=0.0, pan=0.0, muted=False, soloed=False, frozen=False, socket_path="/tmp/nonexistent.sock")
+        self.assertEqual(res["status"], "error")
+        # 1 byte len + 6 bytes 'master' + 4 bytes fader + 4 bytes pan + 1 byte muted + 1 byte soloed + 1 byte frozen = 18 bytes
+        self.assertEqual(res["packed_len"], 18)
+
+    def test_bobui_broadcast_track_update(self):
+        res = bobui_bridge.broadcast_track_update("kick", fader=-2.5, muted=False, soloed=True, socket_path="/tmp/nonexistent.sock")
+        self.assertIn("socket_sync", res)
+        self.assertIn("osc_sync", res)
+        self.assertEqual(res["socket_sync"]["status"], "error")
+
+    def test_sync_session_across_daws(self):
+        tracks = {
+            "kick": {"fader": 0.0, "muted": False, "soloed": False},
+            "bass": {"fader": -4.0, "muted": True, "soloed": False}
+        }
+        res = bobui_bridge.sync_session_across_daws(target_daws=["ardour", "lmms"], tracks=tracks)
+        self.assertIn("ardour", res)
+        self.assertIn("lmms", res)
+        self.assertEqual(res["ardour"]["status"], "synced")
+        self.assertEqual(res["ardour"]["tracks_dispatched"], 2)
+
+    def test_transition_session_workflow(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            res = bobui_bridge.transition_session("ardour", "lmms", mem=mem)
+            self.assertEqual(res["status"], "success")
+            self.assertEqual(res["from_daw"], "ardour")
+            self.assertEqual(res["to_daw"], "lmms")
+            self.assertTrue(os.path.exists(res["exported_file"]))
+            self.assertIn(res["checkpoint"], mem.list_checkpoints())
+
+    def test_transition_rollback_on_failure(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.set_fader("vocals", 1.0)
+            mem.save_checkpoint("pre_fail_cp")
+
+            # Simulate transition pointing to nonexistent target
+            failed_transition = {
+                "checkpoint": "pre_fail_cp",
+                "exported_file": "/tmp/nonexistent_dummy_file_for_rollback_test.ardour"
+            }
+            rollback_res = bobui_bridge.verify_and_rollback_transition(failed_transition, mem=mem)
+            self.assertEqual(rollback_res["status"], "rolled_back")
+            self.assertEqual(rollback_res["restored_checkpoint"], "pre_fail_cp")
+
 
 class TestDawRegistration(unittest.TestCase):
     def test_daw_heartbeat_and_active_filtering(self):
@@ -308,6 +424,1038 @@ class TestWaveformTelemetry(unittest.TestCase):
             history.append(val)
         self.assertEqual(len(history), 32)
         self.assertEqual(history[-1], 0.95)
+
+
+class TestSessionConflictResolution(unittest.TestCase):
+    def test_merge_latest_strategy(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            track = mem.get_or_create_track("lead_vocal")
+            track.fader = -6.0
+            track.role = "vocal"
+            track.muted = False
+            track.last_updated = 1000.0
+
+            # Remote track with newer timestamp
+            incoming_track = session_memory.TrackState(name="lead_vocal", role="vocal")
+            incoming_track.fader = -2.5
+            incoming_track.muted = True
+            incoming_track.last_updated = 2000.0
+            res = mem.resolve_session_conflict([incoming_track], strategy="merge_latest")
+
+            self.assertEqual(res["status"], "success")
+            self.assertEqual(len(res["conflicts"]), 1)
+            self.assertEqual(mem.tracks["lead_vocal"].fader, -2.5)
+            self.assertTrue(mem.tracks["lead_vocal"].muted)
+
+    def test_overwrite_remote_and_keep_local_strategies(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            track = mem.get_or_create_track("bass_guitar")
+            track.fader = -3.0
+            track.role = "bass"
+
+            incoming_track = session_memory.TrackState(name="bass_guitar", role="bass")
+            incoming_track.fader = -8.0
+
+            # Test keep_local
+            res_keep = mem.resolve_session_conflict([incoming_track], strategy="keep_local")
+            self.assertEqual(mem.tracks["bass_guitar"].fader, -3.0)
+            self.assertEqual(len(res_keep["changes_applied"]), 0)
+
+            # Test overwrite_remote
+            res_overwrite = mem.resolve_session_conflict([incoming_track], strategy="overwrite_remote")
+            self.assertEqual(mem.tracks["bass_guitar"].fader, -8.0)
+            self.assertGreater(len(res_overwrite["changes_applied"]), 0)
+
+    def test_bobui_bridge_merge_foreign_session(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as mem_tmp, tempfile.NamedTemporaryFile(suffix=".json") as file_tmp:
+            mem = session_memory.SessionMemory(storage_path=mem_tmp.name)
+            track = mem.get_or_create_track("master")
+            track.fader = 0.0
+
+            # Write manifest JSON to file_tmp
+            manifest_data = {
+                "tracks": {
+                    "master": {"fader": -1.5, "role": "master", "muted": False, "soloed": False},
+                    "synth": {"fader": -4.0, "role": "synth", "muted": False, "soloed": False}
+                }
+            }
+            with open(file_tmp.name, "w") as f:
+                json.dump(manifest_data, f)
+
+            import bobui_bridge
+            report = bobui_bridge.merge_foreign_session(file_tmp.name, strategy="overwrite_remote", mem=mem)
+            self.assertEqual(report["status"], "success")
+            self.assertEqual(mem.tracks["master"].fader, -1.5)
+            self.assertIn("synth", mem.tracks)
+
+
+class TestUndoRedoStack(unittest.TestCase):
+    def test_undo_and_redo_cycle(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            t = mem.get_or_create_track("vocals")
+            t.fader = 0.0
+
+            # Record action 1: adjust vocal fader to -4.0dB
+            mem.record_action("assistant", "tuck vocals", [("/track/vocals/fader", -4.0)])
+            self.assertEqual(mem.tracks["vocals"].fader, -4.0)
+            self.assertEqual(len(mem.action_history), 1)
+
+            # Undo action 1
+            reverted = mem.undo_last_action()
+            self.assertEqual(len(reverted), 1)
+            self.assertEqual(mem.tracks["vocals"].fader, 0.0)
+            self.assertEqual(len(mem.action_history), 0)
+            self.assertEqual(len(mem.redo_history), 1)
+
+            # Redo action 1
+            applied = mem.redo_last_action()
+            self.assertEqual(len(applied), 1)
+            self.assertEqual(mem.tracks["vocals"].fader, -4.0)
+            self.assertEqual(len(mem.action_history), 1)
+            self.assertEqual(len(mem.redo_history), 0)
+
+    def test_bobui_bridge_redo_integration(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.get_or_create_track("snare").fader = 0.0
+            mem.record_action("assistant", "lower snare", [("/track/snare/fader", -2.0)])
+
+            import bobui_bridge
+            bobui_bridge.undo_session_action(mem)
+            self.assertEqual(mem.tracks["snare"].fader, 0.0)
+
+            bobui_bridge.redo_session_action(mem)
+            self.assertEqual(mem.tracks["snare"].fader, -2.0)
+
+
+class TestHeadlessAudioStreaming(unittest.TestCase):
+    def test_stream_headless_chunk_simulation_and_metrics(self):
+        import bobui_bridge
+        bridge = bobui_bridge.BobUIBridge(socket_path="/tmp/non_existent_stream_socket.sock")
+        res = bridge.stream_headless_audio_chunk(sample_rate=48000, frames=512, format_type="f32le")
+        self.assertEqual(res["status"], "simulated")
+        self.assertEqual(res["sample_rate"], 48000)
+        self.assertEqual(res["frames"], 512)
+        self.assertAlmostEqual(res["latency_ms"], 10.67, delta=0.1)
+        self.assertGreater(res["peak"], 0.0)
+
+    def test_stream_headless_chunk_with_live_host(self):
+        # Test against live IPC socket server
+        import subprocess
+        import time
+        import omni_plugin_bridge
+        import bobui_bridge
+        with tempfile.TemporaryDirectory() as tmpdir:
+            sock_path = os.path.join(tmpdir, "probe_stream.sock")
+            # Spawn Rust omni_host binary
+            proc = subprocess.Popen(
+                ["cargo", "run", "--manifest-path", "omni_plugin_bridge/Cargo.toml", "--bin", "omni_host", "--", sock_path, "TestSynth.so"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL
+            )
+            try:
+                # Wait briefly for socket creation
+                for _ in range(15):
+                    if os.path.exists(sock_path):
+                        break
+                    time.sleep(0.1)
+
+                bridge = bobui_bridge.BobUIBridge(socket_path=sock_path)
+                res = bridge.stream_headless_audio_chunk(sample_rate=48000, frames=256, format_type="f32le")
+                self.assertEqual(res["status"], "ok")
+                self.assertEqual(res["frames"], 256)
+                self.assertAlmostEqual(res["latency_ms"], 5.33, delta=0.1)
+            finally:
+                proc.terminate()
+                proc.wait()
+
+
+class TestSessionDiffComparison(unittest.TestCase):
+    def test_compare_checkpoints_and_live_state(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            t = mem.get_or_create_track("lead_vox")
+            t.fader = 0.0
+            t.muted = False
+            mem.save_checkpoint("snap_initial")
+
+            # Alter state
+            t.fader = -3.5
+            t.muted = True
+            mem.save_checkpoint("snap_modified")
+
+            # 1. Compare snap_initial vs snap_modified
+            diffs = mem.compare_session_snapshots("snap_initial", "snap_modified")
+            fields = {d["field"]: (d["old_val"], d["new_val"]) for d in diffs if d["track"] == "lead_vox"}
+            self.assertIn("fader", fields)
+            self.assertEqual(fields["fader"], (0.0, -3.5))
+            self.assertIn("muted", fields)
+            self.assertEqual(fields["muted"], (False, True))
+
+            # 2. Compare via bobui_bridge
+            import bobui_bridge
+            bridge_diffs = bobui_bridge.compare_session_checkpoints("snap_initial", "snap_modified", mem=mem)
+            self.assertEqual(len(bridge_diffs), len(diffs))
+
+            # 3. Compare snap_modified against live state
+            live_diffs = mem.compare_session_snapshots("snap_modified")
+            # Should be empty since live state matches snap_modified
+            self.assertEqual(len(live_diffs), 0)
+
+
+class TestPluginFormatResolution(unittest.TestCase):
+    def test_native_and_bridged_resolutions(self):
+        import bobui_bridge
+        # Ardour: LV2 is native, CLAP is bridged
+        ardour_lv2 = bobui_bridge.resolve_plugin_format_bridge("LV2", "ardour")
+        self.assertEqual(ardour_lv2["mode"], "NATIVE")
+        self.assertFalse(ardour_lv2["needs_bridge"])
+
+        ardour_clap = bobui_bridge.resolve_plugin_format_bridge("CLAP", "ardour")
+        self.assertEqual(ardour_clap["mode"], "BRIDGED")
+        self.assertTrue(ardour_clap["needs_bridge"])
+
+        # LMMS: VST2 is native, VST3 is bridged
+        lmms_vst2 = bobui_bridge.resolve_plugin_format_bridge("VST2", "lmms")
+        self.assertEqual(lmms_vst2["mode"], "NATIVE")
+
+        lmms_vst3 = bobui_bridge.resolve_plugin_format_bridge("VST3", "lmms")
+        self.assertEqual(lmms_vst3["mode"], "BRIDGED")
+
+    def test_scan_system_plugins(self):
+        import bobui_bridge
+        plugins = bobui_bridge.scan_system_plugins()
+        self.assertGreater(len(plugins), 3)
+        names = [p["name"] for p in plugins]
+        self.assertIn("OmniComp_Pro", names)
+
+
+class TestSessionBroadcastEchoSuppression(unittest.TestCase):
+    def test_echo_suppression_and_origin_exclusion(self):
+        import bobui_bridge
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.get_or_create_track("synth").fader = -4.0
+
+            # First broadcast from ardour
+            res1 = bobui_bridge.broadcast_session_state_safe(tracks=mem.tracks, source_daw="ardour", mem=mem)
+            self.assertEqual(res1["status"], "success")
+            self.assertEqual(res1["source_daw"], "ardour")
+            self.assertNotIn("ardour", res1["target_daws"])
+            self.assertIn("lmms", res1["target_daws"])
+            self.assertGreater(res1["tracks_dispatched"], 0)
+
+            # Immediate identical second broadcast -> should suppress echoes
+            res2 = bobui_bridge.broadcast_session_state_safe(tracks=mem.tracks, source_daw="ardour", mem=mem)
+            self.assertGreater(res2["echoes_suppressed"], 0)
+            self.assertEqual(res2["tracks_dispatched"], 0)
+
+
+class TestTrackFreezeEngine(unittest.TestCase):
+    def test_freeze_and_unfreeze_lifecycle(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            t = mem.get_or_create_track("pads")
+            self.assertFalse(t.frozen)
+
+            # Freeze
+            res_freeze = mem.freeze_track("pads", "/tmp/pads_offline.wav")
+            self.assertEqual(res_freeze["status"], "frozen")
+            self.assertTrue(mem.tracks["pads"].frozen)
+            self.assertEqual(mem.tracks["pads"].freeze_file, "/tmp/pads_offline.wav")
+
+            # Serialization round-trip
+            d = mem.tracks["pads"].to_dict()
+            self.assertTrue(d["frozen"])
+            restored = session_memory.TrackState.from_dict(d)
+            self.assertTrue(restored.frozen)
+
+            # BobUI Bridge unfreeze
+            import bobui_bridge
+            res_unfreeze = bobui_bridge.unfreeze_track_bridge("pads", mem=mem)
+            self.assertEqual(res_unfreeze["status"], "active")
+            self.assertFalse(mem.tracks["pads"].frozen)
+
+
+class TestBinarySerializationExtended(unittest.TestCase):
+    def test_fast_sync_extended_binary_packing(self):
+        import bobui_bridge
+        import struct
+
+        # Pack with fader=-2.5, pan=0.75, muted=True, soloed=False, frozen=True
+        name = "master_bus"
+        name_bytes = name.encode("utf-8")
+        name_len = len(name_bytes)
+        packed = struct.pack(f"!B{name_len}sff???", name_len, name_bytes, -2.5, 0.75, True, False, True)
+
+        expected_size = 1 + name_len + 4 + 4 + 1 + 1 + 1
+        self.assertEqual(len(packed), expected_size)
+
+        # Unpack and verify fields
+        unpacked_len = packed[0]
+        self.assertEqual(unpacked_len, name_len)
+        unpacked_name = packed[1:1+unpacked_len].decode("utf-8")
+        self.assertEqual(unpacked_name, "master_bus")
+
+        fader, pan, muted, soloed, frozen = struct.unpack("!ff???", packed[1+unpacked_len:])
+        self.assertAlmostEqual(fader, -2.5, places=3)
+        self.assertAlmostEqual(pan, 0.75, places=3)
+        self.assertTrue(muted)
+        self.assertFalse(soloed)
+        self.assertTrue(frozen)
+
+
+class TestCheckpointManagement(unittest.TestCase):
+    def test_checkpoint_tagging_and_deletion(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            mem.get_or_create_track("lead").fader = -3.0
+
+            # Save tagged checkpoint
+            mem.save_checkpoint("cp_mix_v1", tag="rough_mix")
+            details = mem.get_checkpoint_details("cp_mix_v1")
+            self.assertEqual(details["tag"], "rough_mix")
+
+            # Tag update via bridge
+            import bobui_bridge
+            bobui_bridge.tag_session_checkpoint("cp_mix_v1", "vocal_tuned", mem=mem)
+            self.assertEqual(mem.get_checkpoint_details("cp_mix_v1")["tag"], "vocal_tuned")
+
+            # Deletion via bridge
+            self.assertIn("cp_mix_v1", mem.list_checkpoints())
+            bobui_bridge.delete_session_checkpoint("cp_mix_v1", mem=mem)
+            self.assertNotIn("cp_mix_v1", mem.list_checkpoints())
+
+
+class TestSessionExportImportExtended(unittest.TestCase):
+    def test_pan_and_freeze_round_trip_ardour_and_lmms(self):
+        with tempfile.NamedTemporaryFile(suffix=".ardour") as tmp_ardour, \
+             tempfile.NamedTemporaryFile(suffix=".mmp") as tmp_lmms, \
+             tempfile.NamedTemporaryFile(suffix=".json") as tmp_json:
+
+            tracks = {
+                "rhythm_guitar": session_memory.TrackState(name="rhythm_guitar", role="guitar"),
+                "lead_guitar": session_memory.TrackState(name="lead_guitar", role="guitar")
+            }
+            tracks["rhythm_guitar"].fader = -4.5
+            tracks["rhythm_guitar"].pan = -0.75
+            tracks["rhythm_guitar"].frozen = True
+
+            tracks["lead_guitar"].fader = -2.0
+            tracks["lead_guitar"].pan = 0.5
+            tracks["lead_guitar"].frozen = False
+
+            # 1. Ardour Export & Import
+            session_exporter.export_to_ardour(tracks, tmp_ardour.name)
+            ardour_in = session_importer.import_from_ardour(tmp_ardour.name)
+            self.assertIn("rhythm_guitar", ardour_in)
+            self.assertAlmostEqual(ardour_in["rhythm_guitar"]["pan"], -0.75, places=2)
+            self.assertTrue(ardour_in["rhythm_guitar"]["frozen"])
+            self.assertAlmostEqual(ardour_in["lead_guitar"]["pan"], 0.5, places=2)
+            self.assertFalse(ardour_in["lead_guitar"]["frozen"])
+
+            # 2. LMMS Export & Import
+            session_exporter.export_to_lmms(tracks, tmp_lmms.name)
+            lmms_in = session_importer.import_from_lmms(tmp_lmms.name)
+            self.assertIn("rhythm_guitar", lmms_in)
+            self.assertAlmostEqual(lmms_in["rhythm_guitar"]["pan"], -0.75, places=2)
+            self.assertTrue(lmms_in["rhythm_guitar"]["frozen"])
+            self.assertAlmostEqual(lmms_in["lead_guitar"]["pan"], 0.5, places=2)
+            self.assertFalse(lmms_in["lead_guitar"]["frozen"])
+
+
+class TestCppSessionBridgeInterchange(unittest.TestCase):
+    def test_cpp_bridge_binary_and_lmms_import(self):
+        # Test C++ session bridge logic via shared library / test compilation
+        with tempfile.NamedTemporaryFile(suffix=".mmp") as tmp_lmms:
+            # Create sample LMMS project XML
+            xml_content = """<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE lmms-project>
+<lmms-project version="1.0" creator="BobUI">
+  <song>
+    <trackcontainer>
+      <track name="SynthLead" type="0" pan="50" muted="0" solo="1" frozen="1"/>
+      <track name="SubBass" type="0" pan="-40" muted="1" solo="0" frozen="0"/>
+    </trackcontainer>
+  </song>
+</lmms-project>"""
+            with open(tmp_lmms.name, "w") as f:
+                f.write(xml_content)
+
+            import session_importer
+            imported = session_importer.import_from_lmms(tmp_lmms.name)
+            self.assertIn("synthlead", imported)
+            self.assertEqual(imported["synthlead"]["pan"], 0.5)
+            self.assertTrue(imported["synthlead"]["soloed"])
+            self.assertTrue(imported["synthlead"]["frozen"])
+
+            self.assertIn("subbass", imported)
+            self.assertEqual(imported["subbass"]["pan"], -0.4)
+            self.assertTrue(imported["subbass"]["muted"])
+            self.assertFalse(imported["subbass"]["frozen"])
+
+
+class TestCheckpointIntegrityGuard(unittest.TestCase):
+    def test_healthy_and_corrupt_checkpoint_validation(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            t = mem.get_or_create_track("lead_vox")
+            t.fader = -3.0
+            t.pan = -0.2
+            mem.save_checkpoint("healthy_cp")
+
+            # 1. Healthy checkpoint check
+            res_healthy = mem.validate_checkpoint_integrity("healthy_cp")
+            self.assertTrue(res_healthy["valid"])
+            self.assertEqual(len(res_healthy["issues"]), 0)
+
+            # Bridge validation
+            import bobui_bridge
+            res_bridge = bobui_bridge.validate_session_checkpoint("healthy_cp", mem=mem)
+            self.assertTrue(res_bridge["valid"])
+
+            # 2. Corrupt checkpoint: invalid fader
+            mem.save_checkpoint("corrupt_cp")
+            mem.checkpoints["corrupt_cp"]["snapshot"]["lead_vox"]["fader"] = 999.0  # Out of +12dB bounds
+            res_corrupt = mem.validate_checkpoint_integrity("corrupt_cp")
+            self.assertFalse(res_corrupt["valid"])
+            self.assertGreater(len(res_corrupt["issues"]), 0)
+
+            # 3. Restore safety: corrupt checkpoint must be rejected
+            ok = mem.restore_checkpoint("corrupt_cp")
+            self.assertFalse(ok)
+
+
+class TestCheckpointRestoreRollback(unittest.TestCase):
+    def test_revert_to_pre_restore_state(self):
+        with tempfile.NamedTemporaryFile(suffix=".json") as tmp:
+            mem = session_memory.SessionMemory(storage_path=tmp.name)
+            t = mem.get_or_create_track("lead_vox")
+            t.fader = -1.0
+            mem.save_checkpoint("cp_base")
+
+            # Alter track
+            t.fader = -8.5
+            self.assertEqual(mem.tracks["lead_vox"].fader, -8.5)
+
+            # Restore cp_base
+            ok = mem.restore_checkpoint("cp_base")
+            self.assertTrue(ok)
+            self.assertEqual(mem.tracks["lead_vox"].fader, -1.0)
+            self.assertIsNotNone(mem.pre_restore_backup)
+
+            # Undo Restore (revert to pre-restore state where fader was -8.5)
+            import bobui_bridge
+            reverted_ok = bobui_bridge.revert_pre_restore_bridge(mem=mem)
+            self.assertTrue(reverted_ok)
+            self.assertEqual(mem.tracks["lead_vox"].fader, -8.5)
+            self.assertIsNone(mem.pre_restore_backup)
+
+
+class TestOscBridgeTransportFeedback(unittest.TestCase):
+    def test_transport_state_tracking_and_summary(self):
+        import osc_bridge
+        # Reset counters
+        osc_bridge.BRIDGE_STATS["routed_messages"] = 0
+        osc_bridge.BRIDGE_STATS["transport_state"] = "stopped"
+
+        # Dispatch simulated incoming play message
+        osc_bridge.broadcast_handler("/transport_play", 1.0)
+        self.assertEqual(osc_bridge.BRIDGE_STATS["transport_state"], "play")
+        self.assertGreater(osc_bridge.BRIDGE_STATS["routed_messages"], 0)
+
+        # Dispatch simulated stop message
+        osc_bridge.broadcast_handler("/transport_stop", 1.0)
+        self.assertEqual(osc_bridge.BRIDGE_STATS["transport_state"], "stop")
+
+        summary = osc_bridge.get_bridge_telemetry_summary()
+        self.assertEqual(summary["transport_state"], "stop")
+        self.assertIn("routed_messages", summary)
+
+
+class TestHeadlessDspStreamingBenchmark(unittest.TestCase):
+    def test_benchmark_execution_and_metrics(self):
+        import bobui_bridge
+        bridge = bobui_bridge.BobUIBridge(socket_path="/tmp/nonexistent_bench_socket.sock")
+        report = bridge.benchmark_headless_dsp_streaming(buffer_sizes=[128, 256, 512], iterations=3)
+
+        self.assertIn("128", report)
+        self.assertIn("256", report)
+        self.assertIn("512", report)
+
+        for b_sz, data in report.items():
+            self.assertIn("mean_latency_ms", data)
+            self.assertIn("jitter_ms", data)
+            self.assertIn("avg_peak", data)
+            self.assertEqual(data["mode"], "simulated")
+            self.assertGreater(data["mean_latency_ms"], 0.0)
+
+
+class TestSessionDiffPatchExport(unittest.TestCase):
+    def test_export_session_diff_patch(self):
+        import session_memory
+        import session_exporter
+        import tempfile
+        import json
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            tv = mem.get_or_create_track("Vocal")
+            tv.fader = 0.8
+            tv.pan = -0.2
+            tv.muted = False
+            tv.solo = True
+            tv.frozen = False
+
+            tb = mem.get_or_create_track("Bass")
+            tb.fader = 0.5
+            tb.pan = 0.0
+            tb.muted = False
+            tb.solo = False
+            tb.frozen = False
+            c1 = mem.save_checkpoint("v1_mix", tag="base")
+
+            tv.fader = 0.9
+            tv.pan = 0.1
+            tv.muted = True
+            tv.solo = False
+            tv.frozen = True
+
+            td = mem.get_or_create_track("Drums")
+            td.fader = 0.7
+            td.pan = 0.0
+            td.muted = False
+            td.solo = False
+            td.frozen = False
+            c2 = mem.save_checkpoint("v2_mix", tag="drums_added")
+
+            out_patch = tempfile.mktemp(suffix=".json")
+            patch_data = session_exporter.export_session_diff_patch(c1, c2, out_patch, mem)
+
+            self.assertIsNotNone(patch_data)
+            self.assertEqual(patch_data["generator"], "Bobtrax Session Diff Exporter")
+            self.assertEqual(patch_data["base_checkpoint"], c1)
+            self.assertEqual(patch_data["compare_checkpoint"], c2)
+            self.assertGreater(patch_data["diff_count"], 0)
+
+            # Check that file exists on disk and is valid JSON matching return
+            with open(out_patch, "r", encoding="utf-8") as f:
+                disk_data = json.load(f)
+            self.assertEqual(disk_data["diff_count"], patch_data["diff_count"])
+            self.assertEqual(disk_data["base_checkpoint"], c1)
+
+            # Check bobui_bridge wrapper method
+            import bobui_bridge
+            out_patch2 = tempfile.mktemp(suffix=".json")
+            bridge_patch = bobui_bridge.export_diff_patch_bridge(c1, c2, out_patch2, mem)
+            self.assertEqual(bridge_patch["diff_count"], patch_data["diff_count"])
+
+            if os.path.exists(out_patch):
+                os.remove(out_patch)
+            if os.path.exists(out_patch2):
+                os.remove(out_patch2)
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
+class TestCheckpointBranchingAndLineage(unittest.TestCase):
+    def test_fork_checkpoint_and_lineage(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            t = mem.get_or_create_track("lead_vox")
+            t.fader = -1.0
+            root_cp = mem.save_checkpoint("root_mix", tag="v1.0")
+
+            # Fork a branch
+            branch_cp = mem.fork_checkpoint(root_cp, "branch_experimental", branch_tag="experimental")
+            self.assertEqual(branch_cp, "branch_experimental")
+            self.assertIn("branch_experimental", mem.list_checkpoints())
+
+            # Validate details and parent pointer
+            details = mem.get_checkpoint_details("branch_experimental")
+            self.assertEqual(details["parent_checkpoint_id"], "root_mix")
+            self.assertEqual(details["tag"], "experimental")
+
+            # Modify branch by restoring and saving sub-branch
+            mem.restore_checkpoint("branch_experimental")
+            t.fader = -6.0
+            sub_branch = mem.save_checkpoint("sub_exp_v2", tag="exp_tweak", parent_checkpoint_id="branch_experimental")
+
+            # Check lineage chain: sub_exp_v2 -> branch_experimental -> root_mix
+            lineage = mem.get_checkpoint_lineage("sub_exp_v2")
+            self.assertEqual(len(lineage), 3)
+            self.assertEqual(lineage[0]["checkpoint"], "sub_exp_v2")
+            self.assertEqual(lineage[1]["checkpoint"], "branch_experimental")
+            self.assertEqual(lineage[2]["checkpoint"], "root_mix")
+            self.assertIsNone(lineage[2]["parent"])
+
+            # Test bridge wrappers
+            bridge_fork = bobui_bridge.fork_session_checkpoint("root_mix", "branch_bridge_test", branch_tag="bridge_tag", mem=mem)
+            self.assertEqual(bridge_fork, "branch_bridge_test")
+            bridge_lineage = bobui_bridge.get_checkpoint_lineage_bridge("branch_bridge_test", mem=mem)
+            self.assertEqual(len(bridge_lineage), 2)
+            self.assertEqual(bridge_lineage[0]["checkpoint"], "branch_bridge_test")
+            self.assertEqual(bridge_lineage[1]["checkpoint"], "root_mix")
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
+class TestCheckpointBranchMerging(unittest.TestCase):
+    def test_merge_branch_into_checkpoint_and_live(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.tracks.clear()
+            tv = mem.get_or_create_track("vocals")
+            tv.fader = -2.0
+            mem.save_checkpoint("base_master")
+
+            # Fork a branch that modifies vocals and adds drums
+            mem.fork_checkpoint("base_master", "drum_experiment")
+            mem.restore_checkpoint("drum_experiment")
+            mem.tracks["vocals"].fader = -4.0
+            td = mem.get_or_create_track("drums")
+            td.fader = 0.5
+            mem.save_checkpoint("drum_experiment")
+
+            # 1. Test merging branch into another checkpoint
+            rep_cp = mem.merge_checkpoint_branch("drum_experiment", "base_master", strategy="overwrite_remote")
+            self.assertEqual(rep_cp["status"], "success")
+            self.assertEqual(rep_cp["merged_tracks_count"], 2)
+            base_snap = mem.checkpoints["base_master"]["snapshot"]
+            self.assertIn("drums", base_snap)
+            self.assertEqual(base_snap["vocals"]["fader"], -4.0)
+
+            # 2. Test merging branch into live session memory
+            # Reset live tracks to base
+            mem.restore_checkpoint("base_master")
+            self.assertEqual(mem.tracks["vocals"].fader, -4.0)
+            mem.tracks["vocals"].fader = 0.0
+
+            rep_live = bobui_bridge.merge_checkpoint_branch_bridge("drum_experiment", target_checkpoint_id=None, strategy="overwrite_remote", mem=mem)
+            self.assertEqual(rep_live["status"], "success")
+            self.assertEqual(mem.tracks["vocals"].fader, -4.0)
+            self.assertIn("drums", mem.tracks)
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
+class TestBulkFastSync(unittest.TestCase):
+    def test_fast_sync_bulk_tracks_formatting_and_mock(self):
+        import bobui_bridge
+        import session_memory
+
+        tracks_dict = {
+            "vocal": {"fader": 0.85, "pan": -0.25},
+            "bass": {"fader": -3.0, "pan": 0.0},
+            "synth": {"fader": 0.0, "pan": 0.5}
+        }
+
+        # Test with mock non-existent socket (returns mock_simulated or skipped_empty)
+        rep = bobui_bridge.fast_sync_bulk_tracks(tracks_dict, socket_path="/tmp/nonexistent_bulk_sock.sock")
+        self.assertEqual(rep["status"], "ok")
+        self.assertEqual(rep["action"], "bulk_synced")
+        self.assertEqual(rep["count"], 3)
+        self.assertEqual(rep["socket_status"], "mock_simulated")
+        self.assertGreater(rep["payload_len"], 0)
+
+        # Test empty input
+        rep_empty = bobui_bridge.fast_sync_bulk_tracks({}, socket_path="/tmp/nonexistent_bulk_sock.sock")
+        self.assertEqual(rep_empty["status"], "ok")
+        self.assertEqual(rep_empty["count"], 0)
+        self.assertEqual(rep_empty["socket_status"], "skipped_empty")
+
+
+class TestAudioBufferLoopback(unittest.TestCase):
+    def test_verify_audio_buffer_loopback(self):
+        import bobui_bridge
+
+        # Test simulated loopback with mock non-existent socket
+        rep = bobui_bridge.verify_audio_buffer_loopback(frames=512, sample_rate=48000, gain=1.0, socket_path="/tmp/nonexistent_loopback.sock")
+        self.assertEqual(rep["status"], "ok")
+        self.assertEqual(rep["action"], "audio_loopback_verified")
+        self.assertEqual(rep["mode"], "simulated")
+        self.assertEqual(rep["frames"], 512)
+        self.assertGreater(rep["peak"], 0.0)
+        self.assertGreater(rep["rms"], 0.0)
+        self.assertIn("peak_db", rep)
+        self.assertIn("rms_db", rep)
+        self.assertIn("latency_ms", rep)
+        self.assertAlmostEqual(rep["latency_ms"], 10.67, delta=0.1)
+
+
+class TestSessionSynchronizationMetrics(unittest.TestCase):
+    def test_sync_metrics_calculation(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.tracks.clear()
+
+            tv = mem.get_or_create_track("vocals")
+            tv.fader = -1.5
+            tv.muted = True
+
+            tb = mem.get_or_create_track("bass")
+            tb.fader = 0.5
+            tb.frozen = True
+
+            mem.register_daw("ardour", port=3819)
+            mem.register_daw("lmms", port=8000)
+
+            c1 = mem.save_checkpoint("base_cp")
+            mem.fork_checkpoint(c1, "branch_cp")
+
+            metrics = mem.get_session_synchronization_metrics()
+            self.assertEqual(metrics["status"], "healthy")
+            self.assertEqual(metrics["total_tracks"], 2)
+            self.assertEqual(metrics["active_daws_count"], 2)
+            self.assertIn("ardour", metrics["active_daws"])
+            self.assertIn("lmms", metrics["active_daws"])
+            self.assertEqual(metrics["frozen_tracks_count"], 1)
+            self.assertEqual(metrics["muted_tracks_count"], 1)
+            self.assertEqual(metrics["checkpoint_count"], 2)
+            self.assertEqual(metrics["max_lineage_depth"], 2)
+
+            bridge_metrics = bobui_bridge.get_session_synchronization_metrics_bridge(mem=mem)
+            self.assertEqual(bridge_metrics["total_tracks"], 2)
+            self.assertEqual(bridge_metrics["status"], "healthy")
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
+class TestSessionTransitionPreflight(unittest.TestCase):
+    def test_preflight_validation_healthy_and_corrupt(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.tracks.clear()
+
+            # 1. Test empty session rejection
+            res_empty = mem.validate_session_transition("ardour", "lmms")
+            self.assertFalse(res_empty["valid"])
+            self.assertIn("0 tracks", res_empty["issues"][0])
+
+            # 2. Add healthy tracks
+            t1 = mem.get_or_create_track("vocals")
+            t1.fader = -3.0
+            t1.pan = -0.2
+            t2 = mem.get_or_create_track("drums")
+            t2.fader = 0.0
+            t2.pan = 0.0
+
+            res_healthy = mem.validate_session_transition("ardour", "lmms")
+            self.assertTrue(res_healthy["valid"])
+            self.assertEqual(res_healthy["total_tracks"], 2)
+            self.assertEqual(len(res_healthy["issues"]), 0)
+
+            # 3. Test corrupted parameter detection
+            t1.fader = 999.0
+            res_corrupt = mem.validate_session_transition("ardour", "lmms")
+            self.assertFalse(res_corrupt["valid"])
+            self.assertGreater(len(res_corrupt["issues"]), 0)
+
+            # 4. Test pre-flight gate inside transition_session()
+            fail_trans = bobui_bridge.transition_session("ardour", "lmms", mem=mem)
+            self.assertEqual(fail_trans["status"], "error")
+            self.assertIn("pre-flight", fail_trans["message"])
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
+class TestSessionStateStash(unittest.TestCase):
+    def test_stash_and_pop_lifecycle(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.tracks.clear()
+
+            t1 = mem.get_or_create_track("lead_guitar")
+            t1.fader = -4.0
+            t1.pan = 0.3
+
+            # 1. Stash current mix
+            stash_res = mem.stash_session_state("my_stash")
+            self.assertEqual(stash_res["status"], "stashed")
+            self.assertEqual(stash_res["stash_depth"], 1)
+
+            # 2. Modify live mix
+            t1.fader = 0.0
+            t1.pan = -0.5
+            t2 = mem.get_or_create_track("backing_vox")
+            t2.fader = -1.0
+
+            # 3. Pop stash and verify restoration
+            pop_res = bobui_bridge.pop_stash_bridge(mem=mem)
+            self.assertEqual(pop_res["status"], "popped")
+            self.assertTrue(pop_res["restored"])
+            self.assertEqual(pop_res["stash_depth"], 0)
+            self.assertEqual(mem.tracks["lead_guitar"].fader, -4.0)
+            self.assertEqual(mem.tracks["lead_guitar"].pan, 0.3)
+            self.assertNotIn("backing_vox", mem.tracks)
+
+            # 4. Pop from empty stash
+            empty_pop = bobui_bridge.pop_stash_bridge(mem=mem)
+            self.assertEqual(empty_pop["status"], "error")
+            self.assertFalse(empty_pop["restored"])
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
+class TestCheckpointBundleInterchange(unittest.TestCase):
+    def test_bundle_export_and_import(self):
+        import session_memory
+        import session_exporter
+        import session_importer
+        import bobui_bridge
+        import tempfile
+
+        db1 = tempfile.mktemp(suffix=".json")
+        db2 = tempfile.mktemp(suffix=".json")
+        bundle_file = tempfile.mktemp(suffix=".json")
+        try:
+            mem1 = session_memory.SessionMemory(storage_path=db1)
+            mem1.tracks.clear()
+
+            tv = mem1.get_or_create_track("vocals")
+            tv.fader = -2.5
+            cp1 = mem1.save_checkpoint("vocal_rough", tag="v1.0")
+
+            mem1.fork_checkpoint(cp1, "vocal_alt", branch_tag="alt_take")
+            mem1.restore_checkpoint("vocal_alt")
+            mem1.tracks["vocals"].fader = -1.0
+            mem1.save_checkpoint("vocal_alt")
+
+            # 1. Export bundle from mem1
+            exp_res = session_exporter.export_checkpoint_bundle(output_path=bundle_file, mem=mem1)
+            self.assertEqual(exp_res["checkpoint_count"], 2)
+            self.assertIn("vocal_rough", exp_res["checkpoints"])
+            self.assertIn("vocal_alt", exp_res["checkpoints"])
+            self.assertEqual(exp_res["checkpoints"]["vocal_alt"]["parent_checkpoint_id"], "vocal_rough")
+
+            # 2. Import bundle into clean mem2
+            mem2 = session_memory.SessionMemory(storage_path=db2)
+            mem2.checkpoints.clear()
+
+            imp_res = bobui_bridge.import_checkpoint_bundle_bridge(bundle_file, mem=mem2)
+            self.assertEqual(imp_res["status"], "success")
+            self.assertEqual(imp_res["checkpoints_imported"], 2)
+            self.assertIn("vocal_rough", mem2.checkpoints)
+            self.assertIn("vocal_alt", mem2.checkpoints)
+
+            # Validate restored branch state
+            mem2.restore_checkpoint("vocal_alt")
+            self.assertEqual(mem2.tracks["vocals"].fader, -1.0)
+        finally:
+            for p in [db1, db2, bundle_file]:
+                if os.path.exists(p):
+                    os.remove(p)
+
+
+class TestCheckpointPruning(unittest.TestCase):
+    def test_prune_checkpoints_with_tag_protection(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.checkpoints.clear()
+
+            # Create 5 checkpoints
+            # cp0: root parent
+            mem.save_checkpoint("cp0", tag="milestone")
+            # cp1: milestone with custom tag
+            mem.save_checkpoint("cp1", tag="golden_master")
+            # cp2: untagged quick checkpoint
+            mem.save_checkpoint("cp2", tag="quick")
+            # cp3: untagged quick checkpoint
+            mem.save_checkpoint("cp3", tag="quick")
+            # cp4: branch child of cp0
+            mem.save_checkpoint("cp4", tag="branch_take", parent_checkpoint_id="cp0")
+
+            self.assertEqual(len(mem.checkpoints), 5)
+
+            # Prune to max 3 checkpoints, keeping tagged and parent branches
+            # cp0 is parent of cp4 -> kept
+            # cp1 has custom tag "golden_master" -> kept
+            # cp4 has custom tag "branch_take" -> kept
+            # Candidates to prune: cp2, cp3 (oldest untagged)
+            res = bobui_bridge.prune_checkpoints_bridge(max_checkpoints=3, keep_tagged=True, mem=mem)
+            self.assertEqual(res["status"], "ok")
+            self.assertEqual(res["pruned_count"], 2)
+            self.assertIn("cp2", res["pruned"])
+            self.assertIn("cp3", res["pruned"])
+            self.assertIn("cp0", mem.checkpoints)
+            self.assertIn("cp1", mem.checkpoints)
+            self.assertIn("cp4", mem.checkpoints)
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
+class TestDawEndpointPingTelemetry(unittest.TestCase):
+    def test_daw_endpoint_ping(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.registered_daws.clear()
+
+            mem.register_daw("ardour", port=3819)
+            mem.register_daw("lmms", port=8000)
+            mem.register_daw("muse")
+
+            ping_res = bobui_bridge.ping_all_daw_endpoints_bridge(mem=mem)
+            self.assertIn("ardour", ping_res)
+            self.assertIn("lmms", ping_res)
+            self.assertIn("muse", ping_res)
+            self.assertIn("omni_bridge", ping_res)
+
+            self.assertEqual(ping_res["muse"]["status"], "registered")
+            self.assertGreater(ping_res["muse"]["latency_ms"], 0.0)
+            self.assertIn(ping_res["ardour"]["status"], ["online", "error"])
+            self.assertIn(ping_res["omni_bridge"]["status"], ["online", "offline", "error"])
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
+class TestHeadlessStreamingStressTest(unittest.TestCase):
+    def test_stress_test_headless_audio_stream(self):
+        import bobui_bridge
+
+        bridge = bobui_bridge.BobUIBridge(socket_path="/tmp/nonexistent_stress.sock")
+        report = bridge.stress_test_headless_audio_stream(buffer_size=256, block_count=20)
+
+        self.assertEqual(report["status"], "ok")
+        self.assertEqual(report["buffer_size"], 256)
+        self.assertEqual(report["block_count"], 20)
+        self.assertEqual(report["total_frames"], 5120)
+        self.assertGreater(report["throughput_frames_per_sec"], 0.0)
+        self.assertGreaterEqual(report["mean_latency_ms"], 0.0)
+        self.assertGreaterEqual(report["max_latency_spike_ms"], 0.0)
+        self.assertGreaterEqual(report["jitter_ms"], 0.0)
+
+
+class TestSessionTransitionDryRunSimulation(unittest.TestCase):
+    def test_simulate_session_transition(self):
+        import session_memory
+        import bobui_bridge
+        import tempfile
+
+        temp_db = tempfile.mktemp(suffix=".json")
+        try:
+            mem = session_memory.SessionMemory(storage_path=temp_db)
+            mem.tracks.clear()
+
+            t1 = mem.get_or_create_track("synth_lead")
+            t1.fader = -3.0
+            t1.pan = 0.4
+            t1.update_parameter("plugins/surge/filter_cutoff", 1200.0)
+
+            t2 = mem.get_or_create_track("acoustic_gtr")
+            t2.fader = 0.0
+            t2.frozen = True
+            t2.freeze_file = "/tmp/test_gtr.wav"
+
+            # 1. Simulate transition to LMMS
+            sim_lmms = bobui_bridge.simulate_session_transition_bridge("ardour", "lmms", mem=mem)
+            self.assertEqual(sim_lmms["status"], "simulation_ready")
+            self.assertTrue(sim_lmms["preflight_valid"])
+            self.assertEqual(sim_lmms["total_tracks"], 2)
+            self.assertEqual(sim_lmms["target_pan_law"], "constant_power")
+            self.assertTrue(sim_lmms["target_supports_freeze"])
+            self.assertGreater(sim_lmms["compatibility_percentage"], 0.0)
+
+            # 2. Simulate transition to MusE (does not support track freeze)
+            sim_muse = bobui_bridge.simulate_session_transition_bridge("ardour", "muse", mem=mem)
+            self.assertFalse(sim_muse["target_supports_freeze"])
+            self.assertIn("acoustic_gtr", sim_muse["bridged_tracks"])
+        finally:
+            if os.path.exists(temp_db):
+                os.remove(temp_db)
+
+
+class TestSessionTimelineMarkers(unittest.TestCase):
+    def test_marker_lifecycle_and_interchange(self):
+        import session_memory
+        import session_exporter
+        import session_importer
+        import bobui_bridge
+        import tempfile
+
+        db1 = tempfile.mktemp(suffix=".json")
+        db2 = tempfile.mktemp(suffix=".json")
+        out_ardour = tempfile.mktemp(suffix=".ardour")
+        out_lmms = tempfile.mktemp(suffix=".mmp")
+        out_manifest = tempfile.mktemp(suffix=".json")
+
+        try:
+            mem = session_memory.SessionMemory(storage_path=db1)
+            mem.markers.clear()
+
+            # 1. Add markers
+            m1 = bobui_bridge.add_session_marker_bridge("Intro", 0.0, marker_type="section", mem=mem)
+            m2 = bobui_bridge.add_session_marker_bridge("Chorus 1", 32.5, marker_type="cue", mem=mem)
+            self.assertEqual(len(mem.list_session_markers()), 2)
+            self.assertEqual(m1["name"], "Intro")
+            self.assertEqual(m2["position"], 32.5)
+
+            # 2. Export to Ardour, LMMS, Manifest
+            session_exporter.export_to_ardour(mem.tracks, out_ardour, markers=mem.markers)
+            session_exporter.export_to_lmms(mem.tracks, out_lmms, markers=mem.markers)
+            session_exporter.export_manifest(mem.tracks, out_manifest, markers=mem.markers)
+
+            # 3. Import back into clean mem2
+            mem2 = session_memory.SessionMemory(storage_path=db2)
+            mem2.markers.clear()
+            session_importer.import_from_manifest(out_manifest, memory_hub=mem2)
+            self.assertEqual(len(mem2.list_session_markers()), 2)
+            self.assertEqual(mem2.list_session_markers()[0]["name"], "Intro")
+
+            # 4. Remove marker
+            rem_ok = bobui_bridge.remove_session_marker_bridge("Intro", mem=mem)
+            self.assertTrue(rem_ok)
+            self.assertEqual(len(mem.list_session_markers()), 1)
+        finally:
+            for p in [db1, db2, out_ardour, out_lmms, out_manifest]:
+                if os.path.exists(p):
+                    os.remove(p)
 
 
 if __name__ == "__main__":

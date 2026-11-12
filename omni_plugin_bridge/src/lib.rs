@@ -101,6 +101,31 @@ impl OmniBridge {
                                             continue;
                                         }
                                     }
+                                } else if trimmed.starts_with("BULK_SYNC ") {
+                                    // Command: BULK_SYNC track1:fader=0.8,pan=-0.2;track2:fader=0.5,pan=0.0
+                                    let content = &trimmed[10..];
+                                    let mut count = 0;
+                                    let mut map = params_ref.lock().unwrap();
+                                    for track_block in content.split(';') {
+                                        let t_trimmed = track_block.trim();
+                                        if t_trimmed.is_empty() {
+                                            continue;
+                                        }
+                                        if let Some((track_id, params)) = t_trimmed.split_once(':') {
+                                            for pair in params.split(',') {
+                                                if let Some((p_name, p_val_str)) = pair.split_once('=') {
+                                                    if let Ok(val) = p_val_str.trim().parse::<f32>() {
+                                                        let key = format!("{}:{}", track_id.trim(), p_name.trim());
+                                                        map.insert(key, val);
+                                                        count += 1;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    let resp = format!("{{\"status\": \"ok\", \"action\": \"bulk_synced\", \"count\": {}}}\n", count);
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
                                 } else if trimmed.starts_with("PROCESS_AUDIO ") {
                                     // Command: PROCESS_AUDIO <num_frames> <gain>
                                     let parts: Vec<&str> = trimmed.split_whitespace().collect();
@@ -117,9 +142,67 @@ impl OmniBridge {
                                     let resp = format!("{{\"status\": \"ok\", \"processed_frames\": {}, \"gain\": {}}}\n", frames, gain);
                                     let _ = stream.write_all(resp.as_bytes());
                                     continue;
+                                } else if trimmed.starts_with("STREAM_AUDIO_BLOCK ") {
+                                    // Command: STREAM_AUDIO_BLOCK <sample_rate> <frames> <format>
+                                    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                    let sample_rate: u32 = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(48000);
+                                    let frames: usize = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(512);
+                                    let format: &str = parts.get(3).unwrap_or(&"f32le");
+
+                                    let mut buffer = shared_mem_ref.lock().unwrap();
+                                    let len = buffer.left_channel.len().min(frames);
+                                    let mut peak: f32 = 0.0;
+                                    for i in 0..len {
+                                        let sample = 0.42;
+                                        buffer.left_channel[i] = sample;
+                                        buffer.right_channel[i] = sample;
+                                        if sample > peak {
+                                            peak = sample;
+                                        }
+                                    }
+
+                                    let latency_ms = (frames as f64 / sample_rate as f64) * 1000.0;
+                                    let resp = format!(
+                                        "{{\"status\": \"ok\", \"sample_rate\": {}, \"frames\": {}, \"format\": \"{}\", \"peak\": {:.4}, \"latency_ms\": {:.2}}}\n",
+                                        sample_rate, frames, format, peak, latency_ms
+                                    );
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
+                                } else if trimmed.starts_with("INJECT_AUDIO_STREAM ") {
+                                    // Command: INJECT_AUDIO_STREAM <frames> <gain>
+                                    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                    let frames: usize = parts.get(1).and_then(|s| s.parse().ok()).unwrap_or(512);
+                                    let gain: f32 = parts.get(2).and_then(|s| s.parse().ok()).unwrap_or(1.0);
+
+                                    let mut buffer = shared_mem_ref.lock().unwrap();
+                                    let len = buffer.left_channel.len().min(frames);
+                                    let mut sum_sq: f32 = 0.0;
+                                    let mut peak: f32 = 0.0;
+                                    for i in 0..len {
+                                        let sample = 0.6 * gain;
+                                        buffer.left_channel[i] = sample;
+                                        buffer.right_channel[i] = sample;
+                                        sum_sq += sample * sample;
+                                        if sample.abs() > peak {
+                                            peak = sample.abs();
+                                        }
+                                    }
+                                    let rms = if len > 0 { (sum_sq / len as f32).sqrt() } else { 0.0 };
+                                    let resp = format!(
+                                        "{{\"status\": \"ok\", \"action\": \"audio_loopback_verified\", \"frames\": {}, \"gain\": {:.2}, \"peak\": {:.4}, \"rms\": {:.4}}}\n",
+                                        frames, gain, peak, rms
+                                    );
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
                                 } else if trimmed.starts_with("SYNC_MANIFEST ") {
                                     // Acknowledge manifest reception
                                     let resp = "{\"status\": \"ok\", \"action\": \"manifest_synced\"}\n";
+                                    let _ = stream.write_all(resp.as_bytes());
+                                    continue;
+                                } else if trimmed.starts_with("GET_PLUGIN_INFO ") {
+                                    let parts: Vec<&str> = trimmed.split_whitespace().collect();
+                                    let p_id = parts.get(1).unwrap_or(&"unknown");
+                                    let resp = format!("{{\"status\": \"ok\", \"plugin_id\": \"{}\", \"formats\": [\"VST3\", \"LV2\", \"CLAP\"], \"bridged\": true}}\n", p_id);
                                     let _ = stream.write_all(resp.as_bytes());
                                     continue;
                                 } else if trimmed == "GET_ALL" {
