@@ -1,11 +1,13 @@
 # bobtrax
 
 bobtrax is a meta-repository that aggregates four open-source DAWs as git
-submodules under one umbrella, plus a small amount of Python glue code of its
-own. Per `VISION.md`, the ambition is a "universal music production
-ecosystem" — shared assets/plugins and AI-assisted workflows across the
-engines. What exists today is the aggregation and early experiments, not the
-unified ecosystem.
+submodules under one umbrella, plus Python glue code of its own. Per
+`VISION.md`, the ambition is a "universal music production ecosystem" —
+shared assets/plugins and AI-assisted workflows across the engines. What
+exists today is the aggregation and early experiments, not the unified
+ecosystem.
+
+**Version:** 1.0.83
 
 ## Submodules
 
@@ -31,17 +33,24 @@ helper for the aggregate tree.
 ## Original code in this repo
 
 - `gui_launcher.py` / `launcher.py` — a launcher front-end for the suite
+- `session_memory.py` (~52 KB), `session_exporter.py`,
+  `session_importer.py` — session state, checkpoint bundles, mix
+  stashing/recovery, timeline markers and cues
 - `osc_bridge.py` / `osc_web_wrapper.py` — OSC bridging experiments
-- `omni_plugin_bridge/`, `ai_assistant/` — early bridge/assistant experiments
+- `bobui_bridge.py` / `bobui_bridge/` — bridge to the BobUI tree
+- `omni_plugin_bridge/`, `ai_assistant/` — early bridge/assistant
+  experiments
+- `stem_separator.py` — stem separation experiment
 - `wasm/`, `wasm_launcher/`, `build_wasm.sh` and the `WASM_*.md` /
   `WEBASSEMBLY.md` notes — a WebAssembly port investigation
+- `health_watchdog.py` — service health monitoring
 - `generate_docs.py` — documentation generator for the repo's many
   agent-facing docs (`MEMORY.md`, `HANDOFF.md`, `PROJECT_STRUCTURE.md`, …)
 
 ## Status
 
-Experiment / aggregation workspace. Submodule pointers and docs were last
-touched by automated agent commits (latest October 2026); the DAWs are
-upstream projects with their own releases and support channels — bobtrax
-itself ships nothing. (The README this replaces ended with ~135 repeated
-`<!-- Break loop N -->` HTML comments, a bot artifact, now removed.)
+Experiment / aggregation workspace, actively developed through November
+2026 (last commit 2026-11-12; recent work is session features: timeline
+markers, transition dry-run simulation, checkpoint export/import, mix
+stashing). The DAWs are upstream projects with their own releases and
+support channels — bobtrax itself ships nothing.
